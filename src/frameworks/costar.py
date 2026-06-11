@@ -10,7 +10,7 @@ Fields:
   response   — expected format and constraints
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

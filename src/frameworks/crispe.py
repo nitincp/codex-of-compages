@@ -24,7 +24,10 @@ class CRISPEPrompt:
     insight: str = ""
     statement: str = ""
     personality: str = "Precise, minimal, and verifiable"
-    experiment: str = "Generate the spec, then self-check for syntactic well-formedness and coverage of the stated objective."
+    experiment: str = (
+        "Generate the spec, then self-check for syntactic well-formedness"
+        " and coverage of the stated objective."
+    )
 
     def build(self) -> str:
         sections = [

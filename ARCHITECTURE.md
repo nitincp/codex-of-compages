@@ -88,8 +88,8 @@ Coordinator:     CLEAR → ReActLoop
 Test Engineer:   CRISPE → FewShot → ConstitutionalAI ↩
 ```
 
-**VOICE is retired.** It was a custom framework baking three dimensions into one.
-Replaced by: COSTAR (Structure) + PersonaLayer (Technique) + ConstitutionalAI (Verification).
+**VOICE is retired.** Replaced by: COSTAR (Structure) + PersonaLayer (Technique) + ConstitutionalAI (Verification).
+See `docs/decisions/ADR-002_voice-retired.md`.
 
 ---
 
@@ -107,38 +107,23 @@ In **augmented mode** (future) the SME Agent suggests or refines what the human 
 
 The council never distinguishes between the two modes. This is by design.
 
-### Framework: VOICE
+### Framework: CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩
 
-VOICE is dedicated to persona simulation. Each field name states exactly what it carries — no repurposing of technical generation fields. "Voice" as the first field establishes persona identity as the primary concern; "Examine" as the last field is an authenticity gate, not a technical verification.
+**VOICE is retired.** It baked three dimensions (Structure, Technique, Verification) into one
+custom framework. Replaced by the standard composition stack. See `docs/decisions/ADR-002_voice-retired.md`.
+
+The SME Agent composition chain:
 
 ```
-Voice:       Persona identity — who speaks and how.
-             Role, background, domain expertise, years of experience,
-             communication style as a single coherent description.
-             Example: "Senior fintech PM, 12 years in payments. Direct and
-             risk-focused. Uses domain terminology naturally (settlement,
-             clearing, chargeback, PCI-DSS). Skeptical of over-engineering."
-
-Ownership:   Domain scope — what this persona is responsible for.
-             Their priorities, concerns, non-negotiables, and what they
-             will push back on. What they will NOT compromise on.
-
-Interaction: Conversation history — what has already happened.
-             Requirements you (as this persona) have stated so far.
-             Council responses received. Accumulates across turns in Phase B.
-             Empty on the first turn.
-
-Context:     Situational context — what is being built right now.
-             The domain brief for this session.
-             Current scenario hint: new_feature | change | removal | conflict
-
-Examine:     Authenticity gate — before outputting, ask:
-             Would a real person matching this Voice actually say this?
-             Is it consistent with prior requirements in Interaction?
-             Does it react coherently to the council's last response?
-             Does it sound like a stakeholder need, not a technical spec?
-             If not, revise before outputting.
+CLEAR (Structure)         — session context: turn number, prior council output, domain brief
+COSTAR (Structure)        — task shape: objective, output format, audience (Spec Advisor)
+PersonaLayer (Technique)  — identity: role, background, domain priorities, communication style
+ConstitutionalAI (Verification) ↩ — authenticity gate: sounds like a stakeholder? reacts
+                                    to council? consistent with prior turns? revise if not.
 ```
+
+`Interaction` history (conversation accumulation across turns) is carried in the COSTAR
+`context` field in Phase A and in a dedicated `interaction` field in Phase B (Reflexion pattern).
 
 ### What the SME Agent produces
 
@@ -259,7 +244,7 @@ For simple projects the Spec Advisor visits layers 2 and 5 only. Spec stack dept
 
 | Agent | Framework | Role | Invoked |
 |---|---|---|---|
-| **SME Agent** | VOICE | Multi-domain persona simulation; drives requirements across any domain | Once per turn (automated mode); stateless in Phase A, history-accumulating in Phase B |
+| **SME Agent** | CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩ | Multi-domain persona simulation; drives requirements across any domain | Once per turn (automated mode); stateless in Phase A, history-accumulating in Phase B |
 | **Spec Advisor** | COSTAR → emits CRISPE | Selects spec language per layer; generates Spec Specialist prompt | Once per layer, first in each CLEAR turn |
 | **Spec Specialist** | CRISPE (dynamic, from Spec Advisor) | Generates the formal spec in the selected language | Once per layer, after Spec Advisor |
 | **Test Engineer** | CRISPE | Derives Gherkin tests from the full spec stack | Once, after all spec layers complete |
@@ -341,11 +326,13 @@ To be extracted from the Senatus project. The following components are reusable 
 **New components (no Senatus equivalent):**
 
 ```
-src/frameworks/               — VOICE, CLEAR, COSTAR, RACE, CRISPE as Python prompt builder classes
-src/agents/sme_agent.py       — SME Agent (VOICEPrompt)
-src/agents/spec_advisor.py    — Spec Advisor (COSTAR → emits CRISPE)
-src/agents/spec_specialist.py — dynamically configured Spec Specialist
-src/orchestration/coordinator.py — deliberative Coordinator
+src/frameworks/               — all prompt builder classes (CLEAR, COSTAR, CRISPE, RACE,
+                                PersonaLayer, ChainOfThought, ReActLoop, ConstitutionalAI,
+                                FewShot, ComposedPrompt)
+src/agents/sme_agent.py       — SME Agent (CLEAR → COSTAR → PersonaLayer → ConstitutionalAI)
+src/agents/spec_advisor.py    — Spec Advisor (CLEAR → COSTAR → CoT → emits CRISPE)
+src/agents/spec_specialist.py — dynamically configured Spec Specialist (CRISPE → FewShot → CAI)
+src/orchestration/coordinator.py — deliberative Coordinator (CLEAR → ReAct)
 src/agents/personas/          — YAML persona files (Phase B)
 ```
 
@@ -359,8 +346,8 @@ faber/
 ├── CLAUDE.md                — Claude Code instructions
 ├── BACKLOG.md               — milestone breakdown
 ├── pyproject.toml           — dependencies
-├── .env                     — non-sensitive config
-├── .devcontainer/           — devcontainer + bootstrap-secrets (copy from Senatus)
+├── .env                     — non-sensitive config (gitignored)
+├── .devcontainer/           — devcontainer + bootstrap-secrets
 ├── data/kuzu/               — Kuzu graph DB (gitignored)
 ├── scripts/
 │   └── graph_stats.py       — inspect graph state
@@ -375,32 +362,39 @@ faber/
 │   └── analysis/                       — alternatives considered, tensions, debates
 ├── src/
 │   ├── frameworks/
-│   │   ├── voice.py         — VOICE persona simulation builder (SME Agent)
-│   │   ├── clear.py         — CLEAR session protocol builder (Coordinator)
-│   │   ├── costar.py        — COSTAR structured output builder (Spec Advisor)
-│   │   ├── crispe.py        — CRISPE technical generation builder (Spec Specialist, Test Engineer)
-│   │   └── race.py          — RACE lightweight generation builder
+│   │   ├── clear.py             — CLEAR session protocol builder
+│   │   ├── costar.py            — COSTAR structured output builder
+│   │   ├── crispe.py            — CRISPE technical generation builder
+│   │   ├── race.py              — RACE lightweight generation builder
+│   │   ├── persona.py           — PersonaLayer technique builder
+│   │   ├── chain_of_thought.py  — ChainOfThought reasoning builder
+│   │   ├── react.py             — ReActLoop reasoning builder
+│   │   ├── constitutional_ai.py — ConstitutionalAI verification builder
+│   │   ├── few_shot.py          — FewShot technique builder
+│   │   └── composed.py          — ComposedPrompt assembler
 │   ├── agents/
-│   │   ├── base.py          — BaseAgent (adapted from Senatus)
-│   │   ├── sme_agent.py     — SME Agent (VOICEPrompt)
-│   │   ├── spec_advisor.py  — Spec Advisor (COSTAR → CRISPE)
-│   │   ├── spec_specialist.py — dynamically configured
-│   │   ├── test_engineer.py — Gherkin/BDD generator
-│   │   ├── schemas.py       — Pydantic output schemas for all agents
-│   │   └── personas/        — YAML persona files (Phase B)
+│   │   ├── base.py              — BaseAgent
+│   │   ├── sme_agent.py         — SME Agent (CLEAR → COSTAR → PersonaLayer → CAI)
+│   │   ├── spec_advisor.py      — Spec Advisor (CLEAR → COSTAR → CoT → emits CRISPE)
+│   │   ├── spec_specialist.py   — dynamically configured (CRISPE injected → FewShot → CAI)
+│   │   ├── test_engineer.py     — Test Engineer (CRISPE → FewShot → CAI)
+│   │   ├── schemas.py           — Pydantic output schemas for all agents
+│   │   └── personas/            — YAML persona files (Phase B)
 │   ├── graph/
-│   │   ├── schema.py        — NodeType/EdgeType enums
-│   │   └── store.py         — GraphStore (Kuzu)
+│   │   ├── schema.py            — NodeType/EdgeType enums
+│   │   └── store.py             — GraphStore (Kuzu)
 │   ├── orchestration/
-│   │   ├── council.py       — LangGraph graph definition
-│   │   └── coordinator.py   — deliberative Coordinator logic
+│   │   ├── council.py           — LangGraph graph definition
+│   │   └── coordinator.py       — deliberative Coordinator (CLEAR → ReAct)
 │   └── ui/
-│       └── app.py           — Chainlit app
+│       └── app.py               — Chainlit app
 └── tests/
-    ├── test_frameworks.py   — unit tests for prompt builders
-    ├── test_sme_agent.py    — persona simulation tests
-    ├── test_spec_advisor.py — selection loop tests
-    └── test_graph_store.py  — Kuzu integration tests
+    ├── test_frameworks.py       — unit tests for all prompt builders (M1 gate)
+    ├── test_spec_advisor.py     — selection loop tests (M2–M5 gates)
+    ├── test_sme_chain.py        — inter-agent context tests (M6 gate)
+    ├── test_meta_chain.py       — meta-prompting chain tests (M7 gate)
+    ├── test_coordinator.py      — Coordinator retry loop tests (M8 gate)
+    └── test_graph_store.py      — Kuzu integration tests (M9 gate)
 ```
 
 ---
@@ -410,7 +404,7 @@ faber/
 | Decision | Rationale |
 |---|---|
 | **Faber** as project name | Latin for maker/artisan/architect — the guild metaphor maps onto the agent council; "homo faber" (man as maker) grounds the PE-first philosophy |
-| SME Agent grounded on VOICE, not CRISPE | CRISPE is for technical generation — "Experiment" is a verification check, personality is field 5, and conversation history has no field. VOICE puts persona identity first, has a dedicated Interaction field for conversation history, and Examine is an authenticity gate. Each framework has a single purpose; no dual-mode workarounds |
+| SME Agent on CLEAR → COSTAR → PersonaLayer → CAI (VOICE retired) | VOICE baked Structure + Technique + Verification into one custom framework. Replaced by the standard composition stack: CLEAR (session context), COSTAR (output format), PersonaLayer (identity), ConstitutionalAI (authenticity gate). See `docs/decisions/ADR-002_voice-retired.md` |
 | SME Agent is council-transparent | The council never knows if input is human or SME Agent. The SME Agent is not tied to any specific domain — it simulates any domain expert persona. Enables automated testing, regression, and benchmark runs without special council code paths |
 | Prompt frameworks as Python classes | Composability, testability, and consistency — a COSTARPrompt object can be inspected and modified; a raw string cannot |
 | Spec Advisor emits CRISPE prompt | The Spec Specialist's behavior IS its prompt; generating it is the Spec Advisor's primary product |

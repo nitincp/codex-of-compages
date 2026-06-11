@@ -1,5 +1,5 @@
 {
-  "name": "compages",
+  "name": "the codex of compages",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",

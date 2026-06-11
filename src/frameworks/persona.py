@@ -12,7 +12,7 @@ Fields:
   communication_style — how they express themselves
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

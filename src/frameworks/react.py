@@ -28,7 +28,8 @@ class ReActLoop:
             parts.append(f"**Thought**\n{self.thought_prompt}")
         if self.action_options:
             options = " | ".join(self.action_options)
-            parts.append(f"**Action**\nChoose one: {options}\nState your chosen action and the explicit rationale.")
+            rationale = "State your chosen action and the explicit rationale."
+            parts.append(f"**Action**\nChoose one: {options}\n{rationale}")
         if self.observation_note:
             parts.append(f"**Observation**\n{self.observation_note}")
         return "\n\n".join(parts)

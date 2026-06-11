@@ -19,7 +19,6 @@ The composed string is logged at construction time if FABER_LOG_PROMPTS=true.
 import os
 from dataclasses import dataclass, field
 
-
 DIVIDER = "\n\n---\n\n"
 
 
@@ -35,6 +34,6 @@ class ComposedPrompt:
                 parts.append(text.strip())
         result = DIVIDER.join(parts)
         if os.getenv("FABER_LOG_PROMPTS", "").lower() == "true":
-            layer_names = ", ".join(type(l).__name__ for l in self.layers)
+            layer_names = ", ".join(type(layer).__name__ for layer in self.layers)
             print(f"[ComposedPrompt] layers=[{layer_names}] length={len(result)}")
         return result
