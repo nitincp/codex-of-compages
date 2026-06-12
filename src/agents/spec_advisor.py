@@ -1,10 +1,10 @@
 """
-SpecAdvisorAgent — M2 baseline: COSTAR structure layer only.
+SpecAdvisorAgent — M3: COSTAR (Structure) + ChainOfThought (Reasoning).
 
 Selects the optimal formal specification language for a given project brief.
-Later milestones add ChainOfThought (M3) and ConstitutionalAI (M4).
+ConstitutionalAI (Verification) is added in M4.
 
-Composition chain (M2): COSTARPrompt only
+Composition chain (M3): COSTARPrompt → ChainOfThought
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from anthropic.types import ToolParam
 
 from src.agents.base import BaseAgent
 from src.agents.schemas import SpecAdvisorOutput
-from src.frameworks import ComposedPrompt, COSTARPrompt
+from src.frameworks import ChainOfThought, ComposedPrompt, COSTARPrompt
 
 _TOOL_NAME = "report_spec_selection"
 
@@ -23,10 +23,17 @@ _TOOL_SCHEMA: ToolParam = cast(
     ToolParam,
     {
         "name": _TOOL_NAME,
-        "description": "Report the selected formal specification language and justification.",
+        "description": "Report the selected spec language, reasoning steps, and justification.",
         "input_schema": {
             "type": "object",
             "properties": {
+                "reasoning_steps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Ordered reasoning steps taken to reach the selection. "
+                    "Each step must reference a specific concern (e.g. concurrency, data shape, "
+                    "API surface) or name a candidate language being evaluated.",
+                },
                 "selected_lang": {
                     "type": "string",
                     "description": "The formal specification language selected for this layer "
@@ -49,7 +56,13 @@ _TOOL_SCHEMA: ToolParam = cast(
                     "maximum": 1.0,
                 },
             },
-            "required": ["selected_lang", "layer", "justification", "confidence"],
+            "required": [
+                "reasoning_steps",
+                "selected_lang",
+                "layer",
+                "justification",
+                "confidence",
+            ],
         },
     },
 )
@@ -97,13 +110,30 @@ class SpecAdvisorAgent(BaseAgent[SpecAdvisorOutput]):
                 "formal specification. Your justification informs which properties to emphasise."
             ),
             response_format=(
-                "Call the report_spec_selection tool with: selected_lang (exact language name "
-                "from the list above), layer (system/domain/component/api), justification "
+                "Call the report_spec_selection tool with: reasoning_steps (ordered list of "
+                "steps taken — each step names a concern or candidate language evaluated), "
+                "selected_lang (exact language name from the list above), "
+                "layer (system/domain/component/api), justification "
                 "(why this language fits — must cite specific project characteristics), "
                 "confidence (0.0–1.0)."
             ),
         )
-        return ComposedPrompt(layers=[costar]).build()
+        cot = ChainOfThought(
+            steps=[
+                "Identify the primary technical concerns of this project brief "
+                "(e.g. concurrency, data shape, API surface, safety constraints, "
+                "consistency model).",
+                "For each concern, name one or two candidate specification languages "
+                "that address it and briefly evaluate their fit.",
+                "Weigh the candidates against each other: which language covers the most critical "
+                "concerns with the least overhead for this project's complexity level?",
+                "Select the best language and determine which spec layer it targets "
+                "(system, domain, component, or api).",
+                "State your confidence in the selection (0.0–1.0) based on how well the language "
+                "covers the identified concerns.",
+            ]
+        )
+        return ComposedPrompt(layers=[costar, cot]).build()
 
     def run(self, project_brief: str) -> SpecAdvisorOutput:
         """Select a spec language for the given project brief."""
@@ -111,7 +141,7 @@ class SpecAdvisorAgent(BaseAgent[SpecAdvisorOutput]):
 
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=2048,
             system=system_prompt,
             messages=[
                 {

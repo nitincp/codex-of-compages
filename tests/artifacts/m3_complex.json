@@ -1,0 +1,25 @@
+{
+  "milestone": "M3",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt + ChainOfThought",
+  "timestamp": "2026-06-12T02:56:18.188596+00:00",
+  "input": {
+    "project_brief": "multi-region e-commerce platform with eventual consistency, distributed inventory, and CQRS event sourcing"
+  },
+  "output": {
+    "selected_lang": "TLA+",
+    "layer": "system",
+    "justification": "The project exhibits three properties that collectively mandate TLA+: (1) multi-region eventual consistency requires temporal reasoning over asynchronous replica convergence \u2014 TLA+'s Temporal Logic of Actions is purpose-built for this; (2) CQRS event sourcing requires formal modelling of command handlers, append-only event logs, and read-model projections as distinct concurrent processes with ordering and idempotency constraints, which TLA+ expresses as interleaved state machines with safety invariants; (3) distributed inventory demands a global no-oversell invariant (inventory \u2265 0 across all replica processes) and a liveness property (every reservation request eventually resolves), both of which require TLA+'s combined safety/liveness proof framework. Alloy could verify structural snapshots of the inventory model but cannot express temporal convergence. CML captures message-passing protocols but lacks global invariant assertion. Event-B provides stronger refinement guarantees but imposes certification-grade overhead unjustified by the brief. TLA+ covers the dominant concerns at the system layer with the least overhead mismatch.",
+    "confidence": 0.93,
+    "reasoning_steps": [
+      "Step 1 \u2014 Identify primary technical concerns: (a) multi-region distribution with network partitions and replication lag; (b) eventual consistency guarantees across inventory nodes; (c) CQRS event-sourcing requiring clear command/event ordering and state convergence; (d) safety properties such as no negative inventory, no duplicate order fulfilment; (e) liveness properties such as every submitted order eventually reaches a terminal state.",
+      "Step 2a \u2014 Concern: eventual consistency & distributed state. Candidates: TLA+ (models temporal logic, safety/liveness over distributed state machines), Event-B (refinement-based, suited to certified safety-critical systems). TLA+ directly models multi-process interleaving and consistency invariants under asynchrony; Event-B is stronger for refinement proofs but carries high overhead for non-certified domains.",
+      "Step 2b \u2014 Concern: CQRS event sourcing (command/event ordering, projection consistency). Candidates: TLA+ (can model command handlers, event log, and read-model projection as distinct state machines with ordering constraints), CML (models message-passing and session protocols). CML is well-suited to protocol choreography but does not natively express temporal invariants over shared state. TLA+ handles both.",
+      "Step 2c \u2014 Concern: distributed inventory (concurrent writes, conflict resolution, no-oversell invariant). Candidates: TLA+ (can assert global invariants like inventory >= 0 across all replica processes), Alloy (can verify relational/structural invariants in bounded scope). Alloy excels at structural snapshots but lacks temporal operators needed for liveness and multi-step consistency convergence.",
+      "Step 2d \u2014 Concern: API surface / data shapes. Candidates: OpenAPI, JSON Schema. These address a lower-priority concern (payload contracts) and would target the api/component layer rather than the system layer. Not the primary focus here.",
+      "Step 3 \u2014 Weigh candidates: TLA+ covers all three critical concerns \u2014 (i) safety invariants (no negative inventory, idempotent event application), (ii) liveness properties (order convergence under eventual consistency), and (iii) concurrent process interleaving (multi-region replicas, command vs. query paths). Event-B would add formal refinement proofs but is disproportionate overhead for a commercial e-commerce platform without certification requirements. CML and Alloy each cover only a subset. TLA+ is the dominant choice.",
+      "Step 4 \u2014 Spec layer: the concerns are system-wide (cross-region consistency model, global invariants, distributed process coordination), placing this firmly at the 'system' layer.",
+      "Step 5 \u2014 Confidence: 0.93. TLA+ is the canonical tool for this class of problem; the only residual uncertainty is whether a lighter structural tool (Alloy) might suffice if liveness proofs are descoped, but the brief explicitly cites eventual consistency and event sourcing, which demand temporal reasoning."
+    ]
+  }
+}

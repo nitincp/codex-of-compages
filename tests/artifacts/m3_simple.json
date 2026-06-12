@@ -1,0 +1,22 @@
+{
+  "milestone": "M3",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt + ChainOfThought",
+  "timestamp": "2026-06-12T02:55:54.542558+00:00",
+  "input": {
+    "project_brief": "CRUD todo app with REST API and a PostgreSQL backend"
+  },
+  "output": {
+    "selected_lang": "OpenAPI",
+    "layer": "api",
+    "justification": "The project is a REST API\u2013fronted CRUD application with no concurrency, distributed coordination, or safety-critical properties. OpenAPI is the canonical choice because it directly models the full API surface \u2014 the five standard CRUD endpoints (collection and resource-level GET, POST, PUT, DELETE), path and query parameters, HTTP status codes, and inline JSON Schema definitions for the Todo resource (e.g. id, title, completed, created_at fields). It subsumes plain JSON Schema for payload validation while adding endpoint-level semantics that JSON Schema lacks. No other candidate language (TLA+, CML, Alloy, Event-B) addresses concerns present in this project; their overhead is unjustified for a non-distributed, non-safety-critical system with a trivially simple data model backed by PostgreSQL.",
+    "confidence": 0.95,
+    "reasoning_steps": [
+      "Step 1: Identify primary technical concerns \u2014 the project is a CRUD todo app with a REST API and PostgreSQL backend. Key concerns are: (1) API surface definition (endpoints, HTTP methods, request/response shapes), (2) data shape validation (todo item schema, field types, constraints), (3) no concurrency or distributed system concerns, (4) no safety-critical requirements, (5) no complex relational invariants beyond standard CRUD.",
+      "Step 2: Evaluate candidate languages per concern \u2014 API surface: OpenAPI directly models multi-endpoint REST contracts with request/response schemas, HTTP methods, status codes, and path parameters; JSON Schema handles data shapes but lacks endpoint-level semantics. Data shape: JSON Schema and OpenAPI both cover this; OpenAPI subsumes JSON Schema for payload definitions. Concurrency/safety: TLA+, Event-B, CML are all overkill \u2014 no distributed coordination or safety-critical properties present. Relational invariants: Alloy could model entity relationships, but the data model is trivially simple (todo items with fields like id, title, status).",
+      "Step 3: Weigh candidates \u2014 OpenAPI dominates for this project: it covers the full REST API surface (CRUD endpoints: GET /todos, POST /todos, GET /todos/{id}, PUT /todos/{id}, DELETE /todos/{id}), inline schema definitions for the Todo resource, query parameter specs, and HTTP response codes \u2014 all in a single artefact. JSON Schema alone would miss endpoint semantics. All other languages (TLA+, CML, Alloy, Event-B, Pydantic) address concerns not present in this project or require a Python-specific context not indicated.",
+      "Step 4: Select language and layer \u2014 OpenAPI targets the 'api' layer, which is precisely what a REST API contract with request/response definitions represents.",
+      "Step 5: Confidence is high (0.95) \u2014 the project brief is unambiguous about being a REST API with simple CRUD semantics; OpenAPI is the canonical and most complete fit with minimal overhead."
+    ]
+  }
+}
