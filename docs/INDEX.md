@@ -26,6 +26,8 @@ Why the system is designed the way it is. Read when you want the *why*, not just
 |---|---|---|
 | [ADR-001](decisions/ADR-001_layered-composition-over-monolithic.md) | Layered composition over monolithic agent prompts | Active |
 | [ADR-002](decisions/ADR-002_voice-retired.md) | VOICE framework retired; replaced by composed layers | Retired |
+| [ADR-003](decisions/ADR-003_constitutional-ai-as-verification-layer.md) | Constitutional AI as the universal verification gate for all agents | Active |
+| [ADR-004](decisions/ADR-004_forced-tool-use-for-structured-output.md) | Forced tool-use (`tool_choice=any`) for all structured agent output | Active |
 
 ---
 
@@ -36,9 +38,10 @@ One file per milestone. **Created at milestone start** (hypothesis + method + ga
 
 | Milestone | Layer | File | Status |
 |---|---|---|---|
-| M00 | Infrastructure | [M00_infrastructure.md](evidence/M00_infrastructure.md) | Hypothesis written |
-| M01 | Layer 0: Framework builders | [M01_framework_builders.md](evidence/M01_framework_builders.md) | Hypothesis written |
-| M02–M13 | Subsequent layers | Create from [TEMPLATE.md](evidence/TEMPLATE.md) when milestone starts | — |
+| M00 | Infrastructure | [M00_infrastructure.md](evidence/M00_infrastructure.md) | Complete |
+| M01 | Layer 0: Framework builders | [M01_framework_builders.md](evidence/M01_framework_builders.md) | Complete |
+| M02 | Layer 1: Single agent, structure only | [M02_spec_advisor_structure.md](evidence/M02_spec_advisor_structure.md) | Complete |
+| M03–M13 | Subsequent layers | Create from [TEMPLATE.md](evidence/TEMPLATE.md) when milestone starts | — |
 
 ---
 

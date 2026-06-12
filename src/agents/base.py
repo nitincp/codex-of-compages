@@ -11,8 +11,11 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 import anthropic
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -56,8 +59,8 @@ class SessionUsage:
         return self.total_input_tokens + self.total_output_tokens
 
 
-class BaseAgent(ABC):
-    """Abstract base for all Faber agents."""
+class BaseAgent(ABC, Generic[T]):
+    """Abstract base for all Faber agents. T is the return type of run()."""
 
     def __init__(self) -> None:
         self._client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -76,5 +79,5 @@ class BaseAgent(ABC):
         return token_usage
 
     @abstractmethod
-    def run(self, **kwargs):
+    def run(self, *args: Any, **kwargs: Any) -> T:
         """Execute the agent's primary task."""

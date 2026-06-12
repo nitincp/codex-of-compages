@@ -14,7 +14,7 @@ import requests
 from playwright.sync_api import Page, expect
 
 BASE_URL = "http://localhost:8000"
-SCREENSHOTS_DIR = Path("tests/screenshots")
+SCREENSHOTS_DIR = Path("tests/artifacts")
 
 
 # ── Server lifecycle ──────────────────────────────────────────────────────────
@@ -104,5 +104,15 @@ def test_screenshot_after_run(page: Page):
 
     page.screenshot(
         path=str(SCREENSHOTS_DIR / "m0_run_result.png"),
+        full_page=True,
+    )
+
+
+def test_screenshot_idle_state(page: Page):
+    """Capture the dashboard in its initial idle state."""
+    page.goto(BASE_URL)
+    page.wait_for_load_state("networkidle", timeout=20_000)
+    page.screenshot(
+        path=str(SCREENSHOTS_DIR / "m0_dashboard_idle.png"),
         full_page=True,
     )

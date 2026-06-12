@@ -1,0 +1,29 @@
+{
+  "milestone": "M1",
+  "description": "Framework builder sample outputs \u2014 baseline for composition layer tests",
+  "timestamp": "2026-06-12T02:37:24.356239+00:00",
+  "frameworks_tested": [
+    "COSTARPrompt",
+    "CRISPEPrompt",
+    "CLEARSession",
+    "RACEPrompt",
+    "PersonaLayer",
+    "ChainOfThought",
+    "ReActLoop",
+    "ConstitutionalAI",
+    "FewShot",
+    "ComposedPrompt (COSTAR + Persona + CAI)"
+  ],
+  "samples": {
+    "COSTARPrompt": "**Context**\nREST API for a todo app\n\n**Objective**\nSelect the best spec language\n\n**Style**\nFormal\n\n**Tone**\nRigorous\n\n**Audience**\nSpec Specialist\n\n**Response Format**\nJSON",
+    "CRISPEPrompt": "**Capacity**\nTLA+ specialist\n\n**Role**\nSpec Specialist\n\n**Insight**\nDistributed system with eventual consistency\n\n**Statement**\nGenerate a TLA+ spec for the inventory module\n\n**Personality**\nPrecise and thorough\n\n**Experiment**\nReview your spec for completeness",
+    "CLEARSession": "**Context**\nSpec Advisor council session\n\n**Layering**\nDomain \u2192 Component\n\n**Execute**\nSelect language and justify\n\n**Assess**\nIs the selection appropriate for complexity?\n\n**Reflect**\nWhat changed from the prior layer?",
+    "RACEPrompt": "**Role**\nSpec Advisor\n\n**Action**\nSelect formal specification language\n\n**Context**\nMulti-region e-commerce platform\n\n**Execute**\nReturn selected_lang and justification",
+    "PersonaLayer": "You are a Senior Fintech PM. 10 years in payments and compliance Your priorities: Regulatory compliance and transaction velocity Communication style: Direct, precise, risk-aware",
+    "ChainOfThought": "Think step by step before selecting.\nStep 1: Identify the layer concerns (concurrency, data shape, API surface)\nStep 2: Evaluate candidate languages against those concerns\nStep 3: Select the best fit and state confidence",
+    "ReActLoop": "**Thought**\nAssess output quality against confidence threshold.\n\n**Action**\nChoose one: proceed | retry | escalate\nState your chosen action and the explicit rationale.\n\n**Observation**\nRecord what changed after the revision.",
+    "ConstitutionalAI": "Critique your output against these principles:\n  1. Justification references specific project characteristics\n  2. Confidence is >= 0.7 for a non-trivial project\n  3. All candidate languages are evaluated before selecting\n\nIf any principle is violated, revise the output before returning.",
+    "FewShot": "Examples of valid formal spec outputs:\n\n--- Example: OpenAPI ---\nopenapi: 3.0.0\ninfo:\n  title: Todo API\n  version: 1.0.0\n\n--- Example: TLA+ ---\n---- MODULE Inventory ----\nVARIABLES stock\n====================",
+    "ComposedPrompt (COSTAR + Persona + CAI)": "# [Structure: COSTARPrompt]\n**Context**\nspec selection task\n\n**Objective**\npick best language\n\n**Style**\nFormal notation with plain-English rationale\n\n**Tone**\nRigorous and collaborative\n\n---\n\n# [Technique: PersonaLayer]\nYou are a Spec Advisor.\n\n---\n\n# [Verification: ConstitutionalAI]\nCritique your output against these principles:\n  1. justification is non-empty\n\nIf any principle is violated, revise your output before producing the final result."
+  }
+}

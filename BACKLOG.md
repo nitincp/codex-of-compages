@@ -55,7 +55,7 @@ Source: extracted and adapted from Senatus project.
 - [x] Verify: `streamlit run src/ui/dashboard.py --server.port 8000` starts without errors
 - [x] `tests/test_m0_dashboard.py` — Playwright smoke tests confirm dashboard renders correctly
 
-**Verified**: dashboard loads, milestone selector present, Run button present, agent cards idle. 4/4 playwright tests passing.
+**Verified**: dashboard loads, milestone selector present, Run button present, agent cards idle. 4/4 Playwright smoke tests + 2 screenshot captures passing. Screenshots at `tests/artifacts/m0_dashboard_idle.png` and `tests/artifacts/m0_run_result.png`.
 
 ---
 
@@ -75,7 +75,7 @@ Source: extracted and adapted from Senatus project.
 - [x] Implement `src/frameworks/composed.py` — `ComposedPrompt(layers=[...]).build() -> str`
   - Assembles layers in order, separated by `\n\n---\n\n`
   - Each layer labelled with its dimension in a comment (for logging/debugging)
-- [x] `tests/test_frameworks.py`:
+- [x] `tests/test_m1_frameworks.py`:
   - Each builder: all fields → all section headers present in correct order
   - Empty optional field → section omitted
   - `ComposedPrompt([costar, persona, cai]).build()` → sections appear in correct sequence
@@ -85,16 +85,16 @@ Source: extracted and adapted from Senatus project.
 
 ---
 
-## Milestone 2 — Layer 1 PoC: Single Agent, Structure Only
+## Milestone 2 — Layer 1 PoC: Single Agent, Structure Only ✓
 
 **What is being proven**: a structure layer alone (COSTAR) is sufficient to ground the Spec Advisor's core task — selecting a spec language. Establishes the baseline all subsequent layers are measured against.
 
-- [ ] `src/agents/schemas.py` — `SpecAdvisorOutput`: `selected_lang`, `layer`, `justification`, `confidence`
-- [ ] `src/agents/spec_advisor.py` — `SpecAdvisorAgent` with **COSTAR only** (no CoT, no CAI yet)
+- [x] `src/agents/schemas.py` — `SpecAdvisorOutput`: `selected_lang`, `layer`, `justification`, `confidence`
+- [x] `src/agents/spec_advisor.py` — `SpecAdvisorAgent` with **COSTAR only** (no CoT, no CAI yet)
   - Uses `COSTARPrompt` to build system prompt
   - Forced tool-use returning `SpecAdvisorOutput`
-- [ ] Minimal pipeline: `spec_advisor → show_output → END`
-- [ ] `tests/test_spec_advisor.py`:
+- [x] Minimal pipeline: `spec_advisor → show_output → END`
+- [x] `tests/test_m2_spec_advisor.py`:
   - Input: "CRUD todo app" → selected_lang is JSON Schema or OpenAPI
   - Input: "multi-region e-commerce with eventual consistency" → selected_lang is TLA+ or CML
   - Both: justification present and non-empty
@@ -102,6 +102,8 @@ Source: extracted and adapted from Senatus project.
 **Success criteria** (gate to M3):
 > Spec Advisor selects different languages for projects of different complexity.
 > Justification is coherent. Baseline selection quality recorded for comparison.
+
+**Verified**: 10/10 unit tests passing. CRUD todo app → `OpenAPI`; multi-region e-commerce with eventual consistency → `TLA+`. Distinct language selection confirmed across complexity levels. Justifications non-empty and cite specific project characteristics. M1 regression clean (22/22).
 
 ---
 
@@ -112,7 +114,7 @@ Source: extracted and adapted from Senatus project.
 - [ ] Add `ChainOfThought` layer to `SpecAdvisorAgent`
   - Steps: identify layer concerns → evaluate candidates → select + justify
 - [ ] `SpecAdvisorOutput` extended: add `reasoning_steps: list[str]` field
-- [ ] `tests/test_spec_advisor.py` extended:
+- [ ] `tests/test_m2_spec_advisor.py` extended:
   - `reasoning_steps` is non-empty and contains ≥3 steps
   - Each step references a specific concern or candidate language
   - Selection quality ≥ M2 baseline (same test inputs, compare justification depth)
@@ -130,7 +132,7 @@ Source: extracted and adapted from Senatus project.
 - [ ] Add `ConstitutionalAI` layer to `SpecAdvisorAgent`
   - Criteria: justification references specific layer concerns, confidence ≥ 0.7, candidate evaluation present
 - [ ] `SpecAdvisorOutput` extended: `revised: bool`, `revision_notes: str`
-- [ ] `tests/test_spec_advisor.py` extended:
+- [ ] `tests/test_m2_spec_advisor.py` extended:
   - **Regression test**: intentionally weak input (vague project brief) → `revised=True`, output improves
   - **Pass-through test**: strong input → `revised=False`, output unchanged
   - All M2 and M3 tests still pass (no regression)
@@ -315,6 +317,7 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-06-12 | Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs. Single tool per turn + `"any"` eliminates parse failures. See ADR-004 |
 | 2026-06-12 | Streamlit dashboard as primary UI; Chainlit retained as stub | Streamlit milestone runner proved sufficient for M0 verification. Chainlit kept as interactive shell for M7+ agent chain wiring. Playwright (`pytest-playwright` + `pytest-base-url`) added as UI test layer alongside unit tests |
 | 2026-06-11 | Named **Faber** | Latin: maker/artisan/architect. Guild-of-agents metaphor. "Homo faber" grounds the PE-first philosophy |
 | 2026-06-11 | Composition over single-framework assignment | DSPy (2023) + ACL 2024 empirically prove composable chains outperform monolithic prompts. Each dimension is independently testable |
