@@ -86,7 +86,16 @@ def _parse_rel_tables(schema_text: str) -> dict[str, RelTable]:
 
 
 def _load_schema(milestone: str) -> tuple[dict[str, NodeTable], dict[str, RelTable]]:
-    path = _MILESTONES_DIR / milestone / "migration" / "schema.cypher"
+    import json
+    mig_dir = _MILESTONES_DIR / milestone / "migration"
+    meta_path = mig_dir / "meta.json"
+    declared_passes = json.loads(meta_path.read_text()).get("passes") if meta_path.exists() else None
+
+    if declared_passes is not None:
+        path = mig_dir / f"pass_{declared_passes:02d}" / "schema.cypher"
+    else:
+        path = mig_dir / "schema.cypher"
+
     if not path.exists():
         raise FileNotFoundError(f"schema.cypher not found for {milestone}: {path}")
     text = path.read_text()

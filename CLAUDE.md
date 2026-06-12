@@ -125,14 +125,31 @@ blue-green DB rotation: export old DB → transform → load new DB → retire o
 **This is NOT needed for adding new tables.** `CREATE NODE TABLE IF NOT EXISTS` handles that.
 ETL is only triggered when an existing table's structure must change.
 
-**Migration layout** — every milestone that changes an existing table owns:
+**Migration layout** — every milestone that changes an existing table owns a `migration/` dir.
+Single-pass (one structural change): flat layout. Multi-pass (schema evolved mid-milestone
+during Claude-in-loop analysis): directory per pass. `meta.json["passes"]` = current state.
 
 ```
+── single-pass ────────────────────────────────────────────────────────────
 src/milestones/m{N}/migration/
   meta.json          # {"source_milestone": "mX", "target_milestone": "mN", "reseed_tables": [...]}
-  schema.cypher      # complete DDL snapshot at mN — used to create the new empty DB + for diffs
-  transform.cypher   # all COPY (Cypher) TO parquet blocks in sequence — executable + intent
+  schema.cypher      # complete DDL snapshot at mN
+  transform.cypher   # COPY (Cypher) TO parquet blocks in sequence
+
+── multi-pass ─────────────────────────────────────────────────────────────
+src/milestones/m{N}/migration/
+  meta.json          # {..., "passes": 2}   ← current state = pass_02/
+  pass_01/
+    schema.cypher    # DDL after pass 1
+    transform.cypher # M(N-1) → MN structural migration
+  pass_02/
+    schema.cypher    # DDL after pass 2 (= current state)
+    transform.cypher # MN → MN schema evolution driven by analysis findings
 ```
+
+Add a new pass (never modify existing passes) when mid-milestone analysis reveals richer
+schema needs. `migrate.py` defaults to latest pass; `--pass K` re-applies an earlier one.
+`diff.py` auto-resolves `pass_{N}/schema.cypher` when `passes` is declared.
 
 **`transform.cypher` pattern** — transforms happen in Cypher, not Python:
 
@@ -150,18 +167,19 @@ Rel tables use `src_id`/`dst_id` as the FROM/TO column convention (loaded with
 in a migration (no rows in source) are excluded from `transform.cypher` entirely —
 the verify step handles missing source tables via try/except (count = 0).
 
-**`schema.cypher`** is the snapshot. To see what changed between any two milestones:
+**`schema.cypher`** (or `pass_{N}/schema.cypher` for multi-pass) is the snapshot.
+To see what changed between any two milestones:
 
 ```bash
-diff src/milestones/m2/migration/schema.cypher src/milestones/m5/migration/schema.cypher
-python3 -m src.etl.diff m2 m5   # structured output
+python3 -m src.etl.diff m2 m5   # structured output; auto-resolves latest pass schema
 ```
 
 **To run a migration:**
 
 ```bash
 python3 -m src.etl.migrate --to m{N} --dry-run   # inspect transformed Parquet first
-python3 -m src.etl.migrate --to m{N}              # full rotation
+python3 -m src.etl.migrate --to m{N}              # full rotation (latest pass)
+python3 -m src.etl.migrate --to m{N} --pass 1     # re-apply an earlier pass explicitly
 ```
 
 **Deterministic tables** (e.g. `FrameworkLayer`) are listed in `reseed_tables` — the runner

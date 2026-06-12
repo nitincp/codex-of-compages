@@ -78,7 +78,10 @@ unnecessary and error-prone.
 
 ## Migration File Structure
 
-Each milestone that changes an existing table owns a `migration/` directory:
+Each milestone that changes an existing table owns a `migration/` directory.
+Milestones that only add new tables do not need a `migration/` directory.
+
+**Single-pass** (one structural change, schema stable across the milestone):
 
 ```
 src/milestones/m{N}/migration/
@@ -87,13 +90,39 @@ src/milestones/m{N}/migration/
   transform.cypher   ← all migration queries in sequence (executable + intent)
 ```
 
-Milestones that only add new tables do not need a `migration/` directory.
+**Multi-pass** (schema evolved during Claude-in-loop analysis within the same milestone):
+
+```
+src/milestones/m{N}/migration/
+  meta.json          ← source_milestone, target_milestone, reseed_tables, passes: N
+  pass_01/
+    schema.cypher    ← DDL after pass 1
+    transform.cypher ← M(N-1) → MN structural migration (for M(N-1)-shaped source)
+  pass_02/
+    schema.cypher    ← DDL after pass 2
+    transform.cypher ← MN → MN schema evolution (for MN-shaped source)
+  ...
+```
+
+`meta.json["passes"]` is the source of truth — `pass_{N}/` is the current state.
+`migrate.py` defaults to the latest pass automatically; `--pass K` re-applies an earlier
+pass explicitly. `diff.py` resolves the schema from `pass_{N}/schema.cypher` when passes
+are declared.
+
+**When to add a pass instead of modifying an existing pass**: when Claude-in-loop analysis
+reveals new schema needs mid-milestone (e.g. adding hypothesis-tracking columns after
+initial runs show what should be measured). Earlier passes are never modified — they remain
+a stable grounding record of what was proven at that point. A new pass directory handles
+the evolution, written for the current (not prior-milestone) source DB state.
 
 ### `schema.cypher` — The Snapshot
 
 Full DDL for the new DB — every `CREATE NODE TABLE` and `CREATE REL TABLE` for all
 tables that exist at this milestone. Used by the ETL runner to create the empty new DB.
 Also used by the diff script for milestone comparison.
+
+For multi-pass milestones, each `pass_NN/schema.cypher` is the DDL state after that pass.
+The latest pass's schema is the current state — `diff.py` resolves it automatically.
 
 ```cypher
 CREATE NODE TABLE MilestoneRun (
@@ -160,6 +189,8 @@ COPY (
 
 ### `meta.json` — Runner Metadata
 
+Single-pass:
+
 ```json
 {
   "source_milestone": "m2",
@@ -168,36 +199,53 @@ COPY (
 }
 ```
 
+Multi-pass (add `"passes"` when a milestone has multiple pass directories):
+
+```json
+{
+  "source_milestone": "m2",
+  "target_milestone": "m3",
+  "reseed_tables": ["FrameworkLayer"],
+  "passes": 2
+}
+```
+
 `reseed_tables`: tables skipped by the transform runner and instead re-seeded from
 source code after the new DB is created. These tables have no block in `transform.cypher`.
+
+`passes`: optional. When present, `migrate.py` and `diff.py` resolve schema and transform
+from `pass_{passes}/` by default. Increment this when adding a new pass directory.
 
 ## ETL Runner and Diff Script
 
 ```
 src/etl/
-  migrate.py     ← CLI: python3 -m src.etl.migrate --to m3 [--dry-run]
+  migrate.py     ← CLI: python3 -m src.etl.migrate --to m3 [--pass K] [--dry-run]
   diff.py        ← CLI: python3 -m src.etl.diff m2 m5
 ```
 
 ### `migrate.py` — execution sequence
 
 1. Read `src/milestones/m{N}/migration/meta.json`
-2. Create temp output directory
-3. Execute each `COPY (...) TO` block in `transform.cypher` against old DB
-   (substituting `{output_dir}` with temp path)
-4. Create new empty DB from `schema.cypher`
-5. `COPY TableName FROM parquet` for each output file (nodes first, rels second)
+2. Resolve pass: `--pass K` if given; else `meta["passes"]` for multi-pass; else root files
+3. Create temp output directory
+4. Execute each `COPY (...) TO` block in the resolved `transform.cypher` against old DB
+   (substituting `{output_dir}` with temp path; skips tables absent in source via try/except)
+5. Create new empty DB from the resolved `schema.cypher`
+6. `COPY TableName FROM parquet` for each output file (nodes first, rels second)
    - Rel tables: `COPY REL FROM 'file.parquet' (from='src_id', to='dst_id')`
-6. Re-seed `reseed_tables` via `reseed_frameworks()` in `m1/graph/runner.py`
-7. Verify row counts: for each table in target schema, count src vs new.
+7. Re-seed `reseed_tables` via `reseed_frameworks()` in `m1/graph/runner.py`
+8. Verify row counts: for each table in target schema, count src vs new.
    Tables new in this migration don't exist in source — caught with try/except, counted as 0.
-8. Rotate: `mv data/kuzu → data/kuzu_bak_YYYYMMDD`, `mv new → data/kuzu`
+9. Rotate: `mv data/kuzu → data/kuzu_bak_YYYYMMDD`, `mv new → data/kuzu`
 
 `--dry-run` stops before creating the new DB — lets you inspect transformed Parquet files.
+`--pass K` re-applies an earlier pass (e.g. to replay M(N-1)→MN structural migration after
+discarding the DB). Without `--pass`, the latest pass runs automatically.
 
 ### `diff.py` — schema comparison
 
-Compares `schema.cypher` from two milestone migration directories:
+Compares schemas from two milestone migration directories, auto-resolving the latest pass:
 
 ```bash
 python3 -m src.etl.diff m2 m5

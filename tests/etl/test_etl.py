@@ -366,12 +366,12 @@ def test_dry_run_parquet_files_exist(source_db, capsys):
 
 
 def test_schema_cypher_m3_creates_valid_db(tmp_path):
-    """m3/schema.cypher creates a DB with all M3 tables including new ones."""
+    """m3 pass_02/schema.cypher creates a DB with all M3 tables including new ones."""
     db_path = tmp_path / "m3_schema_test"
     db = kuzu.Database(str(db_path))
     conn = kuzu.Connection(db)
 
-    schema_path = Path("src/milestones/m3/migration/schema.cypher")
+    schema_path = Path("src/milestones/m3/migration/pass_02/schema.cypher")
     _execute_schema(conn, schema_path)
 
     node_tables, rel_tables = _schema_tables(schema_path)
@@ -389,7 +389,7 @@ def test_schema_cypher_m3_specrun_columns(tmp_path):
     db_path = tmp_path / "m3_col_test"
     db = kuzu.Database(str(db_path))
     conn = kuzu.Connection(db)
-    _execute_schema(conn, Path("src/milestones/m3/migration/schema.cypher"))
+    _execute_schema(conn, Path("src/milestones/m3/migration/pass_02/schema.cypher"))
 
     columns = {
         cast(list, row)[1]: cast(list, row)[2]
@@ -400,9 +400,28 @@ def test_schema_cypher_m3_specrun_columns(tmp_path):
     assert "confidence" in columns  # M2 columns preserved
 
 
+def test_schema_cypher_m3_analysis_note_columns(tmp_path):
+    """AnalysisNote at M3 gains hypothesis-tracking columns."""
+    db_path = tmp_path / "m3_note_col_test"
+    db = kuzu.Database(str(db_path))
+    conn = kuzu.Connection(db)
+    _execute_schema(conn, Path("src/milestones/m3/migration/pass_02/schema.cypher"))
+
+    columns = {
+        cast(list, row)[1]: cast(list, row)[2]
+        for row in _exec(conn, 'CALL table_info("AnalysisNote") RETURN *').get_all()
+    }
+    assert "milestone" in columns and columns["milestone"] == "STRING"
+    assert "hypothesis_id" in columns and columns["hypothesis_id"] == "STRING"
+    assert "direction" in columns and columns["direction"] == "STRING"
+    assert "metric_before" in columns and columns["metric_before"] == "DOUBLE"
+    assert "metric_after" in columns and columns["metric_after"] == "DOUBLE"
+    assert "note" in columns  # M2 columns preserved
+
+
 def test_full_migration_m3_row_counts(source_db):
-    """m2→m3 migration preserves row counts and backfills new SpecRun columns."""
-    migrate("m3", dry_run=False, db_path=source_db)
+    """m2→m3 pass 1 migration preserves row counts and backfills new SpecRun columns."""
+    migrate("m3", dry_run=False, db_path=source_db, pass_num=1)
 
     new_db = kuzu.Database(str(source_db))
     new_conn = kuzu.Connection(new_db)
@@ -411,13 +430,60 @@ def test_full_migration_m3_row_counts(source_db):
     assert _count(new_conn, "MATCH (n:SpecRun) RETURN count(n)") == 2
     assert _count(new_conn, "MATCH (n:FrameworkLayer) RETURN count(n)") == 9
 
-    # Backfill values for M2 rows
+    # Backfill values for SpecRun M2 rows
     for row in _exec(new_conn, "MATCH (s:SpecRun) RETURN s.reasoning_step_count, s.evaluation_depth"):
         assert cast(list, row)[0] == 0
         assert cast(list, row)[1] == "unknown"
 
     # REASONING_ADDS table exists and is empty (no M2 cross-schema edges to carry)
     assert _count(new_conn, "MATCH ()-[r:REASONING_ADDS]->() RETURN count(r)") == 0
+
+    # AnalysisNote backfill: pre-M3 notes get neutral defaults for new columns
+    an_count = _count(new_conn, "MATCH (n:AnalysisNote) RETURN count(n)")
+    assert an_count == 1
+    for row in _exec(new_conn, "MATCH (n:AnalysisNote) RETURN n.milestone, n.hypothesis_id, n.direction, n.metric_before, n.metric_after"):
+        r = cast(list, row)
+        assert r[0] == "pre-m3"
+        assert r[1] == ""
+        assert r[2] == ""
+        assert r[3] == 0.0
+        assert r[4] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# M3 pass 2 — AnalysisNote schema evolution from M3 source
+# ---------------------------------------------------------------------------
+
+
+def test_m3_pass2_preserves_specrun_values(source_db_m3):
+    """--pass 2 reads SpecRun values directly; reasoning_step_count is NOT reset to 0."""
+    migrate("m3", dry_run=False, db_path=source_db_m3, pass_num=2)
+
+    new_db = kuzu.Database(str(source_db_m3))
+    new_conn = kuzu.Connection(new_db)
+
+    # SpecRun reasoning_step_count should survive (pass 2 reads directly, not hardcoded 0)
+    for row in _exec(new_conn, "MATCH (s:SpecRun) RETURN s.reasoning_step_count, s.evaluation_depth"):
+        r = cast(list, row)
+        assert r[0] == 5, f"reasoning_step_count should be 5 (from source), got {r[0]}"
+        assert r[1] == "per_concern", f"evaluation_depth should be 'per_concern', got {r[1]}"
+
+    # REASONING_ADDS edge should survive
+    ra_count = _count(new_conn, "MATCH ()-[r:REASONING_ADDS]->() RETURN count(r)")
+    assert ra_count == 1, f"REASONING_ADDS edge should survive pass 2, got {ra_count}"
+
+
+def test_m3_pass1_uses_hardcoded_backfill(source_db):
+    """--pass 1 (M2 source) backfills SpecRun reasoning fields with hardcoded defaults."""
+    migrate("m3", dry_run=False, db_path=source_db, pass_num=1)
+
+    new_db = kuzu.Database(str(source_db))
+    new_conn = kuzu.Connection(new_db)
+
+    for row in _exec(new_conn, "MATCH (s:SpecRun) RETURN s.reasoning_step_count, s.evaluation_depth"):
+        r = cast(list, row)
+        assert r[0] == 0
+        assert r[1] == "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +493,7 @@ def test_full_migration_m3_row_counts(source_db):
 
 def _seed_m3_db(conn: kuzu.Connection, run_id: str = "test-m3-001") -> None:
     """Seed a minimal m3-shaped DB: MilestoneRun + SpecRun (with reasoning fields) + REASONING_ADDS."""
-    _execute_schema(conn, Path("src/milestones/m3/migration/schema.cypher"))
+    _execute_schema(conn, Path("src/milestones/m3/migration/pass_02/schema.cypher"))
 
     ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
     conn.execute(
