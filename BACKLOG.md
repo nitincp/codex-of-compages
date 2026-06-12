@@ -375,6 +375,76 @@ M1 regression: 11/11 clean. M4.1 M2 is **proven** — gate to M4.1 M3 is open.
 
 ---
 
+### M4.1 ETL — Kuzu Schema Migration Infrastructure
+
+**What is being proven**: the ETL migration infrastructure works end-to-end. As the GNN substrate
+grows across milestones, schema changes to existing tables (new columns, type changes, new rel
+FROM/TO types) require a blue-green DB rotation — Kuzu has no `ALTER TABLE`. This milestone
+establishes the tooling so future schema evolution is a managed, documented, reversible operation.
+
+**Design** (`docs/foundations/kuzu_etl_strategy.md`):
+
+Each milestone that changes an existing table owns a `migration/` directory:
+
+```
+src/milestones/m{N}/migration/
+  meta.json          ← {source_milestone, target_milestone, reseed_tables}
+  schema.cypher      ← complete DDL snapshot at milestone N (diff target + new DB creation)
+  transform.cypher   ← all migration queries in sequence (executable + intent)
+```
+
+`transform.cypher` uses Kuzu's `COPY (Cypher WITH transforms) TO parquet` — transforms happen
+in Cypher, no Python intermediary for structural changes. Comments carry the WHY (default
+choices, backfill rationale, cross-milestone comparability warnings). The `WITH` clause
+documents source schema (`n.col AS col`) and target additions (`0 AS new_col`) in the query
+structure itself.
+
+`schema.cypher` is the snapshot — `diff schema.cypher` between any two milestones gives the
+full schema evolution without delta accumulation.
+
+**ETL runner** (`src/etl/`):
+- `migrate.py` — `python3 -m src.etl.migrate --to m{N} [--dry-run]`
+- `diff.py` — `python3 -m src.etl.diff m1 m2` (compares `schema.cypher` files)
+
+**Migration sequence** (migrate.py):
+1. Read `meta.json` → resolve source/target milestone
+2. Execute each `COPY (...) TO '{tmp}/Table.parquet'` block from `transform.cypher`
+3. Create new empty DB from `schema.cypher`
+4. `COPY TableName FROM parquet` — nodes first, rels second
+5. Re-seed `reseed_tables` (deterministic tables — e.g. `FrameworkLayer`)
+6. Verify: row counts, FK spot-checks, gate tests against new DB path
+7. Rotate: `data/kuzu → data/kuzu_bak_YYYYMMDD`, new DB → `data/kuzu`
+
+**Tasks**:
+
+- [ ] `src/etl/__init__.py`
+- [ ] `src/etl/migrate.py` — CLI orchestrator: parse `transform.cypher`, execute COPY blocks,
+      create new DB from `schema.cypher`, bulk load Parquet, re-seed, verify, rotate
+- [ ] `src/etl/diff.py` — parse `schema.cypher` from two milestone migration dirs,
+      diff CREATE TABLE statements, output structured summary
+- [ ] `src/milestones/m1/migration/` — baseline (m1 is the origin, no prior schema)
+  - `meta.json`: `{"source_milestone": null, "target_milestone": "m1", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: `MilestoneRun`, `FrameworkLayer`, `CAPTURED_IN` DDL
+  - `transform.cypher`: identity queries (m1 is baseline — no transform needed, documents the starting schema)
+- [ ] `src/milestones/m2/migration/` — m1 → m2 (adds `SpecRun`, `AnalysisNote`, all rel tables)
+  - `meta.json`: `{"source_milestone": "m1", "target_milestone": "m2", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: all tables at m2
+  - `transform.cypher`: identity for `MilestoneRun`; new-table queries for `SpecRun`, `AnalysisNote`
+- [ ] `tests/etl/test_etl.py` — gate tests (ephemeral DBs):
+  - `transform.cypher` executes without error against a seeded source DB
+  - `schema.cypher` creates a valid new DB (all tables present, correct column types)
+  - Row counts in new DB match source after full migration pipeline
+  - `diff m1 m2` lists `SpecRun`, `AnalysisNote` as NEW; `MilestoneRun`, `FrameworkLayer` as UNCHANGED
+  - `--dry-run` produces Parquet files but does not create or rotate the new DB
+
+**Success criteria** (gate to M4.1 M3):
+> `python3 -m src.etl.migrate --to m2 --dry-run` completes without error.
+> Full migrate pipeline round-trips m1 → m2 with correct row counts and no data loss.
+> `python3 -m src.etl.diff m1 m2` reports correct NEW/UNCHANGED classification.
+> Gate tests green. Existing M1+M2 gate tests unaffected (persistent DB untouched).
+
+---
+
 ### M4.1 M3 — M3 Run and Analysis
 
 **What is being proven**: M3 SpecRun nodes are seeded and the delta against M2 is captured as a
