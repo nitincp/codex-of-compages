@@ -113,6 +113,64 @@ Each milestone owns its own node/rel table names (no collisions). Cross-mileston
 **No artifact files.** Data lives in Kuzu. `dump()` exists in runner.py as an optional dev
 utility but is never called automatically. Do not create per-session JSON/JSONL exports.
 
+## Kuzu schema evolution
+
+**When existing schema does not fit new requirements**, use the ETL migration strategy.
+Full design: `docs/foundations/kuzu_etl_strategy.md`.
+
+Kuzu has no `ALTER TABLE`. When a milestone needs to change an existing node or rel table
+(add a column, change a type, rename, add a second FROM type to a rel), the only path is
+blue-green DB rotation: export old DB → transform → load new DB → retire old.
+
+**This is NOT needed for adding new tables.** `CREATE NODE TABLE IF NOT EXISTS` handles that.
+ETL is only triggered when an existing table's structure must change.
+
+**Migration layout** — every milestone that changes an existing table owns:
+
+```
+src/milestones/m{N}/migration/
+  meta.json          # {"source_milestone": "mX", "target_milestone": "mN", "reseed_tables": [...]}
+  schema.cypher      # complete DDL snapshot at mN — used to create the new empty DB + for diffs
+  transform.cypher   # all COPY (Cypher) TO parquet blocks in sequence — executable + intent
+```
+
+**`transform.cypher` pattern** — transforms happen in Cypher, not Python:
+
+```cypher
+-- TableName: what changed and why
+COPY (
+  MATCH (n:TableName)
+  RETURN n.existing_col AS existing_col,  -- source schema (existed before)
+         0 AS new_col                     -- target addition + intent comment
+) TO '{output_dir}/TableName.parquet'
+```
+
+Rel tables use `src_id`/`dst_id` as the FROM/TO column convention (loaded with
+`COPY REL FROM 'file.parquet' (from='src_id', to='dst_id')`). New tables introduced
+in a migration (no rows in source) are excluded from `transform.cypher` entirely —
+the verify step handles missing source tables via try/except (count = 0).
+
+**`schema.cypher`** is the snapshot. To see what changed between any two milestones:
+
+```bash
+diff src/milestones/m2/migration/schema.cypher src/milestones/m5/migration/schema.cypher
+python3 -m src.etl.diff m2 m5   # structured output
+```
+
+**To run a migration:**
+
+```bash
+python3 -m src.etl.migrate --to m{N} --dry-run   # inspect transformed Parquet first
+python3 -m src.etl.migrate --to m{N}              # full rotation
+```
+
+**Deterministic tables** (e.g. `FrameworkLayer`) are listed in `reseed_tables` — the runner
+re-seeds them from source code rather than transforming stale Parquet. Do not write a
+`COPY` block for them in `transform.cypher`.
+
+**After rotation**, gate tests run against the new persistent DB path to verify correctness
+before the old DB backup is discarded.
+
 ## Claude's role
 
 Claude is **both** code writer and analytical orchestrator in this project.

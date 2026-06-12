@@ -13,8 +13,6 @@ Run it N times, then query the persistent DB ad-hoc.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import kuzu
 import pytest
 
@@ -57,7 +55,8 @@ def m2_graph(tmp_path_factory):
 
     ensure_schema(conn)
     conn.execute(
-        "CREATE (:MilestoneRun {run_id: $run_id, milestone: 'm2', model: $model, timestamp: 'now'})",
+        "CREATE (:MilestoneRun {run_id: $run_id, milestone: 'm2', "
+        "model: $model, timestamp: 'now'})",
         parameters={"run_id": run_id, "model": model},
     )
 
@@ -155,7 +154,8 @@ def test_simple_brief_lang(m2_graph):
     conn, run_id = m2_graph
     rows = _q(
         conn,
-        "MATCH (r:MilestoneRun {run_id: $rid})<-[:SPEC_CAPTURED_IN]-(s:SpecRun {brief_label: 'simple'}) "
+        "MATCH (r:MilestoneRun {run_id: $rid})"
+        "<-[:SPEC_CAPTURED_IN]-(s:SpecRun {brief_label: 'simple'}) "
         "RETURN s.selected_lang",
         {"rid": run_id},
     )
@@ -168,7 +168,8 @@ def test_complex_brief_lang(m2_graph):
     conn, run_id = m2_graph
     rows = _q(
         conn,
-        "MATCH (r:MilestoneRun {run_id: $rid})<-[:SPEC_CAPTURED_IN]-(s:SpecRun {brief_label: 'complex'}) "
+        "MATCH (r:MilestoneRun {run_id: $rid})"
+        "<-[:SPEC_CAPTURED_IN]-(s:SpecRun {brief_label: 'complex'}) "
         "RETURN s.selected_lang",
         {"rid": run_id},
     )

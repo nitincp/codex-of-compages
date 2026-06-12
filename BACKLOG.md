@@ -330,7 +330,7 @@ Confirmed signals:
 
 ---
 
-### M4.1 M2 — M2 Run and Analysis
+### M4.1 M2 — M2 Run and Analysis ✓
 
 **What is being proven**: M2 Spec Advisor calls (COSTAR only — the M2 composition, not the current M4 agent)
 are captured as `SpecRun` nodes. Claude queries confidence distribution and latency across runs.
@@ -375,6 +375,94 @@ M1 regression: 11/11 clean. M4.1 M2 is **proven** — gate to M4.1 M3 is open.
 
 ---
 
+### M4.1 ETL — Kuzu Schema Migration Infrastructure ✓
+
+**What is being proven**: the ETL migration infrastructure works end-to-end. As the GNN substrate
+grows across milestones, schema changes to existing tables (new columns, type changes, new rel
+FROM/TO types) require a blue-green DB rotation — Kuzu has no `ALTER TABLE`. This milestone
+establishes the tooling so future schema evolution is a managed, documented, reversible operation.
+
+**Design** (`docs/foundations/kuzu_etl_strategy.md`):
+
+Each milestone that changes an existing table owns a `migration/` directory:
+
+```
+src/milestones/m{N}/migration/
+  meta.json          ← {source_milestone, target_milestone, reseed_tables}
+  schema.cypher      ← complete DDL snapshot at milestone N (diff target + new DB creation)
+  transform.cypher   ← all migration queries in sequence (executable + intent)
+```
+
+`transform.cypher` uses Kuzu's `COPY (Cypher WITH transforms) TO parquet` — transforms happen
+in Cypher, no Python intermediary for structural changes. Comments carry the WHY (default
+choices, backfill rationale, cross-milestone comparability warnings). The `WITH` clause
+documents source schema (`n.col AS col`) and target additions (`0 AS new_col`) in the query
+structure itself.
+
+`schema.cypher` is the snapshot — `diff schema.cypher` between any two milestones gives the
+full schema evolution without delta accumulation.
+
+**ETL runner** (`src/etl/`):
+- `migrate.py` — `python3 -m src.etl.migrate --to m{N} [--dry-run]`
+- `diff.py` — `python3 -m src.etl.diff m1 m2` (compares `schema.cypher` files)
+
+**Migration sequence** (migrate.py):
+1. Read `meta.json` → resolve source/target milestone
+2. Execute each `COPY (...) TO '{tmp}/Table.parquet'` block from `transform.cypher`
+3. Create new empty DB from `schema.cypher`
+4. `COPY TableName FROM parquet` — nodes first, rels second
+5. Re-seed `reseed_tables` (deterministic tables — e.g. `FrameworkLayer`)
+6. Verify: row counts, FK spot-checks, gate tests against new DB path
+7. Rotate: `data/kuzu → data/kuzu_bak_YYYYMMDD`, new DB → `data/kuzu`
+
+**Tasks**:
+
+- [x] `src/etl/__init__.py`
+- [x] `src/etl/migrate.py` — CLI orchestrator: parse `transform.cypher`, execute COPY blocks,
+      create new DB from `schema.cypher`, bulk load Parquet, re-seed, verify, rotate
+- [x] `src/etl/diff.py` — parse `schema.cypher` from two milestone migration dirs,
+      diff CREATE TABLE statements (NEW/CHANGED/UNCHANGED), output structured summary
+- [x] `src/milestones/m1/migration/` — baseline (m1 is the origin, no prior schema)
+  - `meta.json`: `{"source_milestone": null, "target_milestone": "m1", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: `MilestoneRun`, `FrameworkLayer`, `CAPTURED_IN` DDL
+  - `transform.cypher`: identity queries (m1 is baseline — no transform needed, documents the starting schema)
+- [x] `src/milestones/m2/migration/` — m1 → m2 (adds `SpecRun`, `AnalysisNote`, all rel tables)
+  - `meta.json`: `{"source_milestone": "m1", "target_milestone": "m2", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: all tables at m2
+  - `transform.cypher`: identity for `MilestoneRun`; new-table queries for `SpecRun`, `AnalysisNote`
+- [x] `src/milestones/m3/migration/` — m2 → m3 (SpecRun gains `reasoning_step_count`, `evaluation_depth`; adds `REASONING_ADDS`)
+  - `meta.json`: `{"source_milestone": "m2", "target_milestone": "m3", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: full DDL at m3
+  - `transform.cypher`: backfill `reasoning_step_count=0`, `evaluation_depth='unknown'` for M2 rows
+- [x] `src/milestones/m4/migration/` — m3 → m4 (SpecRun gains `revised`, `revision_notes`; adds `RevisionEvent`, `VERIFICATION_ADDS`)
+  - `meta.json`: `{"source_milestone": "m3", "target_milestone": "m4", "reseed_tables": ["FrameworkLayer"]}`
+  - `schema.cypher`: full DDL at m4
+  - `transform.cypher`: backfill `revised=false`, `revision_notes=''` for M3 rows; carries `REASONING_ADDS` forward
+- [x] `tests/etl/test_etl.py` — 22 gate tests (ephemeral DBs):
+  - `transform.cypher` executes without error against seeded source DBs (m2, m3)
+  - `schema.cypher` creates valid DBs with correct tables and column types (m1–m4)
+  - Row counts match after full migration pipeline (m2→m2, m2→m3, m3→m4)
+  - `diff m1 m2` lists `SpecRun`, `AnalysisNote` as NEW; `MilestoneRun`, `FrameworkLayer` as UNCHANGED
+  - `diff m2 m3` reports `SpecRun` as CHANGED, `REASONING_ADDS` as NEW
+  - `diff m3 m4` reports `SpecRun` as CHANGED, `RevisionEvent` and `VERIFICATION_ADDS` as NEW
+  - `--dry-run` produces Parquet files but does not create or rotate the new DB
+
+**Implementation notes**:
+- `migrate.py` verify step uses try/except on source conn to handle tables new in target (no ALTER TABLE — new tables simply don't exist in source)
+- `diff.py` rel-table regex updated to match tables with properties (`REASONING_ADDS`, `VERIFICATION_ADDS`)
+- `reseed_frameworks()` added to `m1/graph/runner.py` — called by ETL for FrameworkLayer reseed path
+
+**Success criteria** (gate to M4.1 M3):
+> `python3 -m src.etl.migrate --to m2 --dry-run` completes without error.
+> Full migrate pipeline round-trips m2→m3 and m3→m4 with correct row counts and no data loss.
+> `python3 -m src.etl.diff m1 m2` / `m2 m3` / `m3 m4` report correct classification.
+> 22/22 gate tests green. Existing M1+M2 gate tests unaffected (persistent DB untouched).
+
+**Verified** (2026-06-12): 22/22 ETL gate tests passing. 45/45 total tests clean (M1+M2+ETL).
+Migration files in place for m1–m4. `diff.py` correctly classifies CHANGED/NEW/UNCHANGED across all milestone pairs. Gate to M4.1 M3 is open.
+
+---
+
 ### M4.1 M3 — M3 Run and Analysis
 
 **What is being proven**: M3 SpecRun nodes are seeded and the delta against M2 is captured as a
@@ -386,6 +474,7 @@ by CoT 175-token contribution) are resolved from live data. OPP-1 runs as a live
 M3 schema adds `reasoning_steps: list[str]` — restore from the same commit.
 Copy framework builders: `costar.py`, `chain_of_thought.py`, `composed.py` as `[M3-copy]`.
 
+- [x] `src/milestones/m3/migration/` — schema snapshot + transform (done as part of M4.1 ETL)
 - [ ] Restore M3 agent + schema from git `48a5b37` into `src/milestones/m3/`
 - [ ] `src/milestones/m3/graph/schema.py` — `SpecRun` extended with `reasoning_step_count`, `evaluation_depth`; `REASONING_ADDS` rel table:
   - FROM `SpecRun` (m2) TO `SpecRun` (m3): `confidence_delta`, `step_count`, `evaluation_depth`, `adds_candidate_rejection`
@@ -415,6 +504,7 @@ the structurally most similar prior run by traversing cross-schema edges, not by
 M4 schema adds `revised: bool`, `revision_notes: str` — restore from the same commit.
 Copy framework builders: `costar.py`, `chain_of_thought.py`, `constitutional_ai.py`, `composed.py` as `[M4-copy]`.
 
+- [x] `src/milestones/m4/migration/` — schema snapshot + transform (done as part of M4.1 ETL)
 - [ ] Restore M4 agent + schema from git `a966ce9` into `src/milestones/m4/`
 - [ ] `src/milestones/m4/graph/schema.py` — `RevisionEvent` node table; `VERIFICATION_ADDS` rel table:
   - `RevisionEvent`: `run_id`, `brief_label`, `revised`, `cai_principle_triggered`, `assumption_inventory_added`

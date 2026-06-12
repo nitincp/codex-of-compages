@@ -1,5 +1,6 @@
 """
-SpecAdvisorAgent — M4: COSTAR (Structure) + ChainOfThought (Reasoning) + ConstitutionalAI (Verification).
+SpecAdvisorAgent — M4: COSTAR (Structure) + ChainOfThought (Reasoning)
++ ConstitutionalAI (Verification).
 
 Selects the optimal formal specification language for a given project brief.
 CAI critique-revision loop self-corrects weak outputs and passes strong ones through.
@@ -15,7 +16,7 @@ from anthropic.types import ToolParam
 
 from src.agents.base import BaseAgent
 from src.agents.schemas import SpecAdvisorOutput
-from src.frameworks import ChainOfThought, ComposedPrompt, COSTARPrompt, ConstitutionalAI
+from src.frameworks import ChainOfThought, ComposedPrompt, ConstitutionalAI, COSTARPrompt
 
 _TOOL_NAME = "report_spec_selection"
 

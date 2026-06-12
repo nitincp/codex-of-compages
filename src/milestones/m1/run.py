@@ -15,8 +15,8 @@ Example — 3 runs:
 
 import argparse
 import os
-import sys
 from pathlib import Path
+from typing import cast
 
 import kuzu
 from dotenv import load_dotenv
@@ -29,7 +29,9 @@ load_dotenv()
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed one M1 subgraph into the GNN")
     parser.add_argument("run_id", nargs="?", help="Run ID label (auto-generated if omitted)")
-    parser.add_argument("--model", default="local", help="Model label for this run (default: local)")
+    parser.add_argument(
+        "--model", default="local", help="Model label for this run (default: local)"
+    )
     args = parser.parse_args()
 
     db_path = os.getenv("KUZU_DB_PATH", "data/kuzu")
@@ -41,14 +43,14 @@ def main() -> None:
     try:
         run_id = seed(conn, run_id=args.run_id, model=args.model)
 
-        count = conn.execute(
+        count = cast(list, cast(list, cast(kuzu.QueryResult, conn.execute(
             "MATCH (r:MilestoneRun {run_id: $rid})<-[:CAPTURED_IN]-(f) RETURN count(f)",
             parameters={"rid": run_id},
-        ).get_all()[0][0]
+        )).get_all())[0])[0]
 
-        all_runs = conn.execute(
+        all_runs = cast(list, cast(kuzu.QueryResult, conn.execute(
             "MATCH (r:MilestoneRun) RETURN r.run_id, r.timestamp ORDER BY r.timestamp"
-        ).get_all()
+        )).get_all())
 
         print(f"run_id  : {run_id}")
         print(f"db      : {db_path}")
