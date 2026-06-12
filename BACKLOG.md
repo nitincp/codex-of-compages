@@ -14,26 +14,109 @@ Each milestone proves a layer before the next layer is built on top of it.
 A later milestone never breaks an earlier one — the system always has a working set.
 
 ```
+── Spec Council (M0–M13) ──────────────────────────────────────────────────
 M0  Infrastructure
 M1  Layer 0 PoC  — Framework builders (the atomic base)
 M2  Layer 1 PoC  — Single agent, Structure only
 M3  Layer 2 PoC  — Add Reasoning layer
 M4  Layer 3 PoC  — Add Verification (critique-revision loop)
+M4.1 GraphRAG/GNN PoC — PE evolution captured and queryable in Kuzu
 M5  Layer 4 PoC  — Full single agent (all dimensions) + Meta-Prompt output
 M6  Layer 5 PoC  — First agent chain: SME Agent → Spec Advisor
 M7  Layer 6 PoC  — Meta-prompting chain: Spec Advisor → Spec Specialist
 M8  Layer 7 PoC  — Verification in chain + Coordinator (ReAct gating)
 M9  Layer 8 PoC  — Kuzu graph integration: Specification + GROUNDS edges
 M10 Layer 9 PoC  — Multi-layer spec stack (3 layers, stateful Spec Advisor)
-M11 Full council  — Test Engineer + complete traceability
+M11 Full spec council — complete traceability in Kuzu (no code gen yet)
 M12 SME Phase B   — Persona library, multi-turn Reflexion
 M13 Robustness    — Model flexibility, error handling, benchmarking
+
+── Build Council (M14–M18, placeholder — detail written after M13) ────────
+M14 Build foundations — Developer agent + simple console app
+M15 App Tier 1        — Two-layer API + UI  (Test Engineer joins here)
+M16 App Tier 2        — Clean architecture web app
+M17 App Tier 3        — Event-driven web app
+M18 Ultimate          — Faber generates and verifies its own dashboard
 ```
 
 Each PoC has: defined input, defined output, explicit success criteria.
 Passing all criteria = the layer is proven = safe to build the next layer on top.
 
 See `docs/foundations/composition_framework.md` for the full framework architecture.
+
+---
+
+## Graph Architecture — GNN First
+
+Kuzu is not a storage layer that later gets a GNN bolted on. **It is the model.**
+Every milestone grows the graph schema — new node types, new edge types, new learned edge weights.
+The GNN is not trained offline and deployed; it is queried live against whatever has accumulated in Kuzu.
+
+**Each milestone owns its own schema.** There is no single unified graph schema defined upfront.
+Each milestone introduces the node types and edge types that its layer proof requires — no more.
+These heterogeneous subgraphs cohabit Kuzu and are connected by cross-schema edges written
+by the comparative feedback.
+
+**The feedback IS the ML pass.** Every milestone's verification analysis is comparative by design:
+M3 measures against M2, M4 against M3. That comparison is not documentation — it is the **cross-schema
+edge** written between the two milestone subgraphs. The edge carries the delta as properties:
+`confidence_delta`, `reasoning_step_count`, `evaluation_depth`, `revised`, `cai_principle_triggered`.
+
+The GNN learns by traversing *across* these cross-schema edges — not within a single milestone's
+subgraph. The learning signal lives in the topology of comparison, not in the node attributes alone.
+
+```
+M2 subgraph ←——— REASONING_ADDS ———→ M3 subgraph
+  (SpecRun)    confidence_delta=+0.02    (SpecRun)
+               step_count=7
+               evaluation_depth=per-concern
+
+M3 subgraph ←——— VERIFICATION_ADDS ——→ M4 subgraph
+  (SpecRun)    revised=False (strong)     (SpecRun)
+               revised=True (vague)
+               cai_principle=3
+```
+
+**The cross-schema edge IS the gradient.** The GNN reads: "adding reasoning to structure improved
+confidence by X and deepened evaluation from conclusion to per-concern." That is a learned weight
+on the `REASONING_ADDS` edge type — an R-GCN weight matrix for that relation.
+
+### Schema growth: each milestone contributes its own layer
+
+| Milestone | Its own subgraph schema | Cross-schema edge to prior | Signal carried on the edge |
+|---|---|---|---|
+| M1 | `FrameworkLayer`, `ComposedChain`, `COMPOSES` | — | — |
+| M2 | `SpecRun`, `SpecSelection`, `PRODUCED`, `USES_CHAIN` | — (first runs; no prior to compare) | — |
+| M3 | `ReasoningStep`, `GROUNDS_REASONING` | `M2_SpecRun → REASONING_ADDS → M3_SpecRun` | `confidence_delta`, `step_count`, `evaluation_depth` |
+| M4 | `RevisionEvent`, `TRIGGERED_REVISION`, `REVISED_TO` | `M3_SpecRun → VERIFICATION_ADDS → M4_SpecRun` | `revised`, `cai_principle`, `confidence_delta` |
+| M5–M11 | Spec stack nodes per milestone | `MN_SpecRun → LAYER_ADDS → MN+1_SpecRun` | Per-milestone quality delta |
+| M14–M18 | `CodeArtifact`, `GherkinScenario`, `TestResult` | `Spec_SpecRun → CODE_GENERATES → Build_SpecRun` | `first_gen_correct`, `test_coverage`, `convergence_turns` |
+
+### The learning loop
+
+```
+Milestone proven → verification analysis written (comparative against prior milestone)
+    ↓
+Cross-schema edges written to Kuzu: MN_SpecRun → LAYER_ADDS → MN+1_SpecRun
+    with delta properties as edge weights
+    ↓
+GNN message-passing traverses across cross-schema edges
+    ↓
+Query: "for this new brief, which path through the milestone graph
+        produced the best quality signal?" → retrieves prior run by topology
+    ↓
+FewShot layer injects that run as a real example → better agent output
+    ↓
+Better output → richer verification analysis → stronger edge weights  (loop)
+```
+
+**After M3, the first meaningful cross-schema query:**
+> *"Traverse M2 → REASONING_ADDS → M3. For runs where reasoning_step_count ≥ 5 and
+> evaluation_depth = per-concern, what was the confidence_delta?
+> Which SpecRun should I use as a FewShot example for a new complex brief?"*
+
+This is a graph-topology traversal across heterogeneous milestone subgraphs —
+not a text-similarity lookup, not a single-schema query.
 
 ---
 
@@ -75,13 +158,15 @@ Source: extracted and adapted from Senatus project.
 - [x] Implement `src/frameworks/composed.py` — `ComposedPrompt(layers=[...]).build() -> str`
   - Assembles layers in order, separated by `\n\n---\n\n`
   - Each layer labelled with its dimension in a comment (for logging/debugging)
-- [x] `tests/test_m1_frameworks.py`:
-  - Each builder: all fields → all section headers present in correct order
-  - Empty optional field → section omitted
-  - `ComposedPrompt([costar, persona, cai]).build()` → sections appear in correct sequence
-  - Dimension label present for each layer in composed output
+- [x] Added `_dimension` class attribute to all 9 framework classes — values: `Structure`, `Reasoning`, `Verification`, `Technique`. Used by `ComposedPrompt` to prefix each non-empty layer output with `# [Dimension: ClassName]`.
+- [x] `tests/test_m1_frameworks.py` — 22 tests across 5 categories:
+  1. All section headers present in correct order (one test per builder)
+  2. Empty optional fields omitted from output
+  3. `ComposedPrompt` assembly order matches declaration order
+  4. Empty layer skipped (not emitted as blank section)
+  5. Dimension label present for each layer in composed output
 
-**Verified**: 22/22 unit tests passing. All builders produce correctly structured strings. ComposedPrompt assembles in declared order with `# [Dimension: ClassName]` labels. Each layer independently unit-tested.
+**Verified**: 22/22 unit tests passing. All 9 builders produce correctly structured strings. `ComposedPrompt` assembles in declared order with `# [Dimension: ClassName]` prefixes. `_dimension` attribute is the M4.1 GNN seed source for `FrameworkLayer` node classification.
 
 ---
 
@@ -91,19 +176,32 @@ Source: extracted and adapted from Senatus project.
 
 - [x] `src/agents/schemas.py` — `SpecAdvisorOutput`: `selected_lang`, `layer`, `justification`, `confidence`
 - [x] `src/agents/spec_advisor.py` — `SpecAdvisorAgent` with **COSTAR only** (no CoT, no CAI yet)
-  - Uses `COSTARPrompt` to build system prompt
-  - Forced tool-use returning `SpecAdvisorOutput`
+  - System prompt: `ComposedPrompt([COSTARPrompt(...)]).build()`
+  - Forced tool-use (`tool_choice={"type": "any"}`) returning `SpecAdvisorOutput` — see ADR-004
 - [x] Minimal pipeline: `spec_advisor → show_output → END`
-- [x] `tests/test_m2_spec_advisor.py`:
+- [x] `tests/test_m2_spec_advisor.py` — 10 tests:
   - Input: "CRUD todo app" → selected_lang is JSON Schema or OpenAPI
   - Input: "multi-region e-commerce with eventual consistency" → selected_lang is TLA+ or CML
-  - Both: justification present and non-empty
+  - Both: justification present and non-empty; confidence in [0.0, 1.0]; layer in valid set; selections differ
 
 **Success criteria** (gate to M3):
 > Spec Advisor selects different languages for projects of different complexity.
 > Justification is coherent. Baseline selection quality recorded for comparison.
 
-**Verified**: 10/10 unit tests passing. CRUD todo app → `OpenAPI`; multi-region e-commerce with eventual consistency → `TLA+`. Distinct language selection confirmed across complexity levels. Justifications non-empty and cite specific project characteristics. M1 regression clean (22/22).
+**Verified**: 10/10 unit tests passing. M1 regression clean (22/22).
+
+*Simple brief (CRUD todo app)*: `OpenAPI`, `api` layer, confidence **0.97**. Justification cited: multi-endpoint REST contract, HTTP methods, request/response payload schemas, PostgreSQL-backed data shapes. Explicitly ruled out TLA+/CML/Alloy/Event-B as unnecessary for this complexity level.
+
+*Complex brief (multi-region e-commerce, eventual consistency, CQRS)*: `TLA+`, `system` layer, confidence **0.95**. Justification cited: multi-region network partitions, convergence proofs via temporal logic, CQRS async event pipelines, distributed inventory safety (stock never goes negative under concurrent deduction).
+
+**M2 baseline** (anchor for M3 comparison): single-paragraph justification, no step-by-step candidate evaluation, no reasoning trace visible in output. M3 will diff against this.
+
+**Lessons / ADR triggers**:
+- COSTAR `Audience` field is load-bearing for spec language selection: framing output as "consumed by Spec Specialist" causes the model to reason about downstream needs, not just surface plausibility.
+- Enumerating available spec languages in `Context` with brief use-case descriptors is essential — without it the model invents non-canonical names.
+- `tool_choice="auto"` intermittently skips the tool call on simple inputs → `{"type": "any"}` with a single tool. Promoted to ADR-004.
+
+**GNN seed values** (fixes M4.1 null gap): `m2_simple.confidence = 0.97`, `m2_complex.confidence = 0.95`. These are the M2 baseline node features for `REASONING_ADDS` edge delta computation at M4.1.
 
 ---
 
@@ -135,7 +233,7 @@ Composition pattern: `COSTARPrompt → ChainOfThought`. Layers are assembled ind
 - Distributed inventory (no-oversell invariant, liveness) → TLA+ (global `inventory ≥ 0` across replicas + liveness proof) vs Alloy (structural snapshots only — no temporal operators for convergence liveness)
 - API surface → deferred to api/component layer; not dominant concern at system layer
 
-Quality delta vs M2 baseline: M2 justification was a single-paragraph conclusion. M3 justification is grounded in explicit per-concern reasoning visible in the output schema — the model showed its working, not just its answer. The complex brief confidence dropped slightly (M2 not recorded, M3: 0.93) reflecting genuine epistemic humility about whether liveness proofs could be descoped.
+Quality delta vs M2 baseline: M2 justification was a single-paragraph conclusion. M3 justification is grounded in explicit per-concern reasoning visible in the output schema — the model showed its working, not just its answer. The complex brief confidence dropped slightly (M2: 0.95 → M3: 0.93) reflecting genuine epistemic humility about whether liveness proofs could be descoped. The simple brief also dropped slightly (M2: 0.97 → M3: 0.95). Both deltas are −0.02 — consistent pattern: adding reasoning steps surfaces uncertainty the structure-only pass concealed.
 
 Artifacts: `tests/artifacts/m3_simple.json`, `tests/artifacts/m3_complex.json`.
 
@@ -168,6 +266,101 @@ Artifacts: `tests/artifacts/m3_simple.json`, `tests/artifacts/m3_complex.json`.
 Pass-through semantics confirmed: strong inputs are unchanged by the CAI gate; `revision_notes` is empty. The gate only fires when the brief fails the underspecification threshold.
 
 Artifacts: `tests/artifacts/m4_simple.json`, `tests/artifacts/m4_complex.json`, `tests/artifacts/m4_vague.json`.
+
+---
+
+## Milestone 4.1 — GraphRAG / GNN PoC: PE Evolution Captured and Queryable
+
+**What is being proven**: the GNN substrate is not architectural intent — it is a running,
+queryable graph. The PE evolution from M1–M4 exists as real artifacts. This milestone encodes
+that history as heterogeneous subgraphs in Kuzu, writes the cross-schema comparison edges that
+are the ML signal, and proves a topology-based GNN query returns a structurally meaningful answer.
+
+Until this milestone passes, everything written in `docs/foundations/composition_framework.md`
+and in the *Graph Architecture* section above is a claim, not a fact.
+
+### The two kinds of work
+
+**1. Seed each milestone's own subgraph** from existing artifacts — no unified schema, no
+pre-defined supergraph. Each milestone writes only the node and edge types its layer proof required:
+
+| Milestone | Its subgraph | Source data |
+|---|---|---|
+| M1 | `FrameworkLayer` nodes + `COMPOSES` edges | `m1_frameworks.json` — 9 builders, each with name + dimension |
+| M2 | `SpecRun` + `SpecSelection` nodes, `PRODUCED` + `USES_CHAIN` edges | `m2_simple.json`, `m2_complex.json` |
+| M3 | `ReasoningStep` nodes, `GROUNDS_REASONING` edges (added to M2 runs) | `m3_simple.json`, `m3_complex.json` |
+| M4 | `RevisionEvent` nodes, `TRIGGERED_REVISION` + `REVISED_TO` edges | `m4_simple.json`, `m4_complex.json`, `m4_vague.json` |
+
+**2. Write the cross-schema comparison edges** — these are the ML signal. Each edge carries
+a feature vector extracted from the `**Verified:**` sections already written in this BACKLOG.
+
+In R-GCN terms: each edge type has its own weight matrix. The feature vector on the edge is the
+input to that matrix. The GNN learns what "adding reasoning" or "adding verification" means by
+reading these vectors across all instances of the relation.
+
+`REASONING_ADDS` edge feature vector (`M2_SpecRun → M3_SpecRun`, same brief):
+
+| Feature | simple brief | complex brief | note |
+|---|---|---|---|
+| `step_count` | 7 | 8 | from m3 artifacts |
+| `evaluation_depth` | `per_concern` | `per_concern` | qualitative → encode as int (0=paragraph, 1=per_concern) |
+| `prior_depth` | `single_paragraph` | `single_paragraph` | from M3 Verified: "M2 was a single-paragraph conclusion" |
+| `confidence_m2` | **0.97** | **0.95** | from M2 Verified section — gap now closed |
+| `confidence_m3` | 0.95 | 0.93 | from m3 artifacts |
+| `confidence_delta` | **−0.02** | **−0.02** | reasoning layer lowered confidence slightly — epistemic humility: model shows its working and hedges |
+| `adds_candidate_rejection` | True | True | M3 Verified: model dismissed JSON Schema, Event-B, Alloy explicitly |
+
+`VERIFICATION_ADDS` edge feature vector (`M3_SpecRun → M4_SpecRun`, same brief):
+
+| Feature | simple | complex | vague (M4-only) |
+|---|---|---|---|
+| `confidence_delta` | 0.0 (0.95→0.95) | +0.02 (0.93→0.95) | n/a — no M3 pair |
+| `revised` | False | False | True |
+| `cai_principle_triggered` | None | None | 3 |
+| `signal_count_below_threshold` | False | False | True |
+| `assumption_inventory_added` | False | False | True |
+
+**The vague brief has no incoming `VERIFICATION_ADDS` edge** — it was introduced at M4 with no M3
+equivalent. It exists only as a `SpecRun` node connected to a `RevisionEvent`. That topological
+asymmetry (orphaned `RevisionEvent` path, no `REASONING_ADDS` predecessor) is itself a GNN signal:
+the model learns that `SpecRun` nodes with no prior-milestone predecessors are structurally distinct
+from those that evolved through the full composition chain.
+
+These edges cross milestone subgraph boundaries. The GNN learns by traversing them.
+
+### Tasks
+
+- [ ] `src/graph/pe_schema.py` — register node/edge tables per milestone; no unified schema class
+- [ ] `src/graph/pe_seed.py` — milestone subgraph writers, one function per milestone:
+  - `seed_m1(kuzu_conn)` — 9 `FrameworkLayer` nodes from `m1_frameworks.json`
+  - `seed_m2(kuzu_conn)` — 2 `SpecRun` + `SpecSelection` nodes from m2 artifacts
+  - `seed_m3(kuzu_conn)` — `ReasoningStep` nodes; extend m2 runs with step data from m3 artifacts
+  - `seed_m4(kuzu_conn)` — `RevisionEvent` nodes; extend m3 runs with revision data from m4 artifacts
+- [ ] `src/graph/pe_seed.py` — `write_cross_schema_edges(kuzu_conn)`:
+  - Parse M3 and M4 `**Verified:**` sections from `BACKLOG.md`
+  - Write `REASONING_ADDS` edges between matched M2/M3 `SpecRun` pairs with delta properties
+  - Write `VERIFICATION_ADDS` edges between matched M3/M4 pairs with delta properties
+- [ ] `scripts/graph_stats.py` extended — print: node counts per type, edge counts per type,
+  cross-schema edges with their delta properties
+- [ ] `tests/test_m4_1_gnn.py`:
+  - 9 `FrameworkLayer` nodes present
+  - 7 `SpecRun` nodes present across all milestone subgraphs
+  - `REASONING_ADDS` edges exist for simple and complex brief pairs; `step_count ≥ 3` on both
+  - `VERIFICATION_ADDS` edges exist; `revised=True` on the vague pair, `revised=False` on strong pairs
+  - **Cross-schema traversal**: start at `FrameworkLayer(ConstitutionalAI)` → traverse
+    `COMPOSES → ComposedChain(M4) ← USES_CHAIN ← SpecRun(m4_vague) → TRIGGERED_REVISION →
+    RevisionEvent` — full path resolves in one query
+  - **First GNN query** (topology-based retrieval): given a new run with `revised=False`,
+    `step_count ≥ 5`, `evaluation_depth=per-concern` — retrieve the most structurally similar
+    prior `SpecRun` by traversing `REASONING_ADDS` and `VERIFICATION_ADDS` edges.
+    Assert: returns `m4_complex` or `m3_complex`, not `m4_vague`.
+
+**Success criteria** (gate to M5):
+> Each milestone's own subgraph is seeded from real artifacts in Kuzu.
+> Cross-schema comparison edges exist between milestone subgraphs with delta properties.
+> A topology-based traversal across cross-schema edges returns a structurally similar prior run —
+> proving the graph learns by comparison, not by keyword, and that the ML signal
+> encoded in the Verified sections is now a queryable fact in the graph.
 
 ---
 
@@ -258,7 +451,11 @@ Artifacts: `tests/artifacts/m4_simple.json`, `tests/artifacts/m4_complex.json`, 
 
 ---
 
-## Milestone 9 — Layer 8 PoC: Kuzu Graph Integration
+## Milestone 9 — Layer 8 PoC: Spec Stack Graph Integration
+
+**Note**: Kuzu is first used in M4.1 (PE meta-graph). M9 adds the second schema layer — the spec
+stack graph (`Requirement`, `Specification`, `GROUNDS` edges). Both graphs cohabit Kuzu; M9 proves
+the spec artifact traceability chain, not Kuzu's first use.
 
 **What is being proven**: spec artifacts are persisted with GROUNDS edges forming a queryable traceability chain. The graph is the system of record.
 
@@ -301,17 +498,26 @@ Artifacts: `tests/artifacts/m4_simple.json`, `tests/artifacts/m4_complex.json`, 
 
 ---
 
-## Milestone 11 — Full Council: Test Engineer + Traceability
+## Milestone 11 — Full Spec Council: Complete Traceability
 
-Goal: Test Engineer generates Gherkin from the full spec stack. Full traceability path queryable end-to-end.
+Goal: The spec council is complete and the full traceability chain is queryable end-to-end in Kuzu.
+Test Engineer is **not** in this council — Gherkin without a running implementation is another spec layer,
+not a verified test. It belongs in the build council (M14+) alongside Developer and ExecutionVerifier.
 
-- [ ] `src/agents/test_engineer.py` — `TestEngineerAgent`
-  - Chain: `CRISPE → FewShot (spec-derived) → ConstitutionalAI`
-  - Input: all Specification nodes from Kuzu for current session
-  - Output: Gherkin features + scenarios
-- [ ] Graph: `COVERED_BY` edge from `GherkinScenario → Specification`
-- [ ] Full traceability path queryable: Requirement → TLA+ → CML → OpenAPI → Gherkin
-- [ ] Invoked by Coordinator after all spec layers complete
+- [ ] Full 3-pass pipeline proven: `sme_agent → spec_advisor → spec_specialist → coordinator` × 3 layers
+- [ ] Kuzu: full GROUNDS chain (system → domain → component) queryable
+- [ ] Kuzu: `Requirement → DERIVED_FROM → Specification` path present for each layer
+- [ ] `scripts/graph_stats.py` — display full traceability path as a readable chain
+- [ ] `tests/test_full_council.py`:
+  - Full pipeline run produces 3 Specification nodes in Kuzu
+  - Each Specification has a GROUNDS edge to the layer above it
+  - Requirement traces to all 3 layers via DERIVED_FROM
+  - Coordinator issued `proceed` at each layer (or retry + proceed) — no uncaught escalation
+
+**Success criteria (gate to M12):**
+> A single pipeline run produces a complete, queryable spec stack in Kuzu.
+> Every spec layer is grounded and traceable back to the original Requirement.
+> The spec council stands on its own without code generation.
 
 ---
 
@@ -341,6 +547,39 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 
 ---
 
+---
+
+## Build Council — M14–M18 (placeholder track)
+
+> These milestones will be detailed once M13 is proven.
+>
+> The spec council (M0–M13) produces formal specs + a Kuzu traceability graph.
+> The build council (M14–M18) consumes that graph and produces running code + verified tests.
+>
+> The GNN is already running by M3 (see *Graph Architecture — GNN First* above).
+> The build council does not introduce it — it scales it into a new signal class.
+> Every generation attempt, test execution result, coverage signal, and code quality verdict
+> becomes a new instance subgraph written back to Kuzu. The GNN now answers richer queries:
+> which spec patterns produced correct code on first generation, which test topologies caught
+> the most regressions, which layer combinations converged fastest under Coordinator retry.
+> The graph grows from a spec traceability store into a full build-intelligence substrate.
+>
+> Two new agents join here: **Developer** and **Test Engineer**.
+> A new **ExecutionVerifier** step replaces schema-conformance checks with actual test runs.
+
+The complexity tiers below are both the *input brief complexity* and the *success bar*:
+each tier must produce a runnable artifact whose own tests pass before the milestone is proven.
+
+| Milestone | Input brief | Spec stack depth | Output |
+|---|---|---|---|
+| M14 | Simple console app | 1 layer (domain only) | Single-file CLI; passes its own tests |
+| M15 | Two-layer API + UI | 2 layers (domain → component) | FastAPI + minimal frontend; runnable (Test Engineer joins here) |
+| M16 | Clean-arch web app | 3 layers (system → domain → component) | Layered structure, DI, repo pattern |
+| M17 | Event-driven web app | 4+ layers + async specs | CQRS / event bus wiring, async consumers |
+| M18 | **Ultimate: self-generating dashboard** | Full council | Faber generates its own Streamlit UI + test suite; generated Playwright tests pass against it |
+
+---
+
 ## Decisions Log
 
 | Date | Decision | Reason |
@@ -356,7 +595,10 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 | 2026-06-11 | VOICE framework retired | Was a custom framework baking three dimensions into one. Replaced by: COSTAR (Structure) + Persona Prompting (Technique) + Constitutional AI (Verification) — all industry-standard |
 | 2026-06-11 | SME Agent on COSTAR + Persona + CAI | COSTAR structures the output, Persona Prompting grounds the voice, CAI gates authenticity. Three industry-standard layers replacing one custom one |
 | 2026-06-11 | Meta-prompting named explicitly | The Spec Advisor's primary product is a CRISPE prompt. This IS meta-prompting (Suzgun & Kalai 2024). Naming it makes the architecture self-documenting |
-| 2026-06-11 | Constitutional AI as the verification layer | Anthropic's own framework, designed for Claude. Critique-revision loop is the natural fit for all output gates in Faber agents |
+| 2026-06-11 | **ADR-003** — Constitutional AI as the universal verification gate | Every agent's composition chain ends with `ConstitutionalAI`. Principles are agent-specific and reference named fields and thresholds. Inline critique-revision (single API call) — not a separate LLM-as-judge call. M4 is the empirical test: if it shows no improvement on weak inputs, this decision must be revisited. See `docs/decisions/ADR-003_constitutional-ai-as-verification-layer.md` |
+| 2026-06-12 | **ADR-004** — Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs — discovered during M2 implementation. Single tool per turn + `"any"` eliminates silent parse failures. Additive schema pattern: `SpecAdvisorOutput` gains fields at M3/M4/M5 without breaking earlier tests. See `docs/decisions/ADR-004_forced-tool-use-for-structured-output.md` |
+| deferred | **ADR-005** — Coordinator-gated deliberative consensus (pending M8) | Decision held back intentionally — better written when M8 proves it. Rationale must be grounded in empirical evidence from the retry/escalate loop, not upfront design intent. Write after M8 gate tests pass. |
 | 2026-06-11 | Reflexion for SME Phase B multi-turn | Shinn et al. NeurIPS 2023 validates verbal episodic memory for multi-trial improvement without weight updates. Exact pattern needed for accumulating council responses |
 | 2026-06-11 | Deliberative consensus (Coordinator-gated) | Spec quality at lower layers depends on correctness above. CLEAR + ReAct makes decisions auditable. Errors surface, not propagate |
-| 2026-06-11 | Separate repo from Senatus | Different grounding: PE-first vs council-first. Different schema. Shared toolchain extracted and adapted |
+| 2026-06-12 | Kuzu positioned as GraphRAG + GNN substrate, not a persistence layer | Derived from Senatus (agentic-gnn) (predecessor project from which Faber was forked). The architectural decision — Kuzu as a live R-GCN whose schema grows one layer per milestone — was established in Senatus (agentic-gnn) and carried forward. GraphRAG (Edge et al. 2024) and R-GCN (Schlichtkrull et al. 2018) are the grounding papers. |
+| 2026-06-11 | Separate repo from Senatus (agentic-gnn) | Senatus (agentic-gnn) is the predecessor. It had the correct architectural instinct — agent council + Kuzu GraphRAG/GNN substrate — but its implementation was rigid and ad-hoc: hard-coded prompts, fixed pipelines, no ability to adapt to project complexity or learn across runs. Faber provides the PE framework grounding that transforms that prototype into a dynamic, adaptive, evolving system. Prompts are composed at runtime from orthogonal layers; the spec stack adapts depth to complexity; the GNN accumulates signal that improves future runs. The PE framework is what makes the graph substrate live rather than static. Shared: devcontainer/toolchain (M0), Kuzu graph substrate design. Faber's own: the entire composition model. |

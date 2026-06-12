@@ -7,6 +7,12 @@ This file provides guidance to Claude Code when working with the Faber project.
 **Faber** *(Latin: maker, artisan, architect)* — a prompt engineering project that transforms
 requirements into a layered stack of formal specifications using a minimal council of LLM agents.
 
+Faber evolved from **Senatus (agentic-gnn)**, which had the right architectural instinct — agent
+council + Kuzu as a GraphRAG/GNN substrate — but was rigid and ad-hoc in execution (hard-coded
+prompts, fixed pipelines). Faber provides the PE framework grounding that makes the system dynamic,
+adaptive, and self-improving: prompts composed at runtime, spec stack depth scaling to complexity,
+GNN accumulating signal across runs.
+
 **Read `docs/foundations/composition_framework.md` first.** It is the central architectural document.
 It defines the layered composition model, research grounding (8 papers), full agent chains,
 and one-shot examples for every layer. Everything else references back to it.
@@ -25,10 +31,17 @@ Never build a new layer before the layer below it is proven.
 Each milestone in `BACKLOG.md` has explicit success criteria — passing them is the gate to the next.
 
 ```
+── Spec Council ──────────────────────────────────────────────────────────
 M0  Infra         → M1 Framework builders  → M2 Structure only
 M3  Add Reasoning → M4 Add Verification    → M5 Full agent + meta-prompt output
 M6  First chain   → M7 Meta-prompt chain   → M8 Coordinator loop
-M9  Kuzu graph    → M10 Multi-layer stack  → M11 Full council
+M9  Kuzu graph    → M10 Multi-layer stack  → M11 Full spec council (traceability)
+M12 SME Phase B   → M13 Robustness
+
+── Build Council (placeholder — detail written after M13) ────────────────
+M14 Developer agent + console app  → M15 API + UI (Test Engineer joins here)
+M16 Clean-arch web app             → M17 Event-driven web app
+M18 Ultimate: Faber generates its own dashboard
 ```
 
 ## Commands
@@ -91,7 +104,7 @@ KUZU_DB_PATH=data/kuzu
 FABER_LOG_PROMPTS=false    # set true to log each build() output for debugging
 ```
 
-## The 5 agents — composition chains
+## Spec Council agents (M0–M13)
 
 | Agent | Composition chain | Role |
 |---|---|---|
@@ -99,7 +112,14 @@ FABER_LOG_PROMPTS=false    # set true to log each build() output for debugging
 | Spec Advisor | `CLEAR → COSTAR → ChainOfThought → [emits CRISPE]` | Meta-prompter; lang selector |
 | Spec Specialist | `CRISPE (injected) → FewShot → ConstitutionalAI ↩` | Formal spec generator |
 | Coordinator | `CLEAR → ReActLoop` | Deliberative gate |
-| Test Engineer | `CRISPE → FewShot → ConstitutionalAI ↩` | Gherkin from spec stack |
+
+## Build Council agents (M14–M18, placeholder)
+
+| Agent | Candidate chain | Role |
+|---|---|---|
+| Developer | `CRISPE (injected) → FewShot → ConstitutionalAI ↩` | Code generation from spec stack |
+| Test Engineer | `CRISPE → FewShot (spec-derived) → ConstitutionalAI ↩` | Gherkin scenarios; runs against generated code |
+| ExecutionVerifier | TBD | Sandboxed runner; feeds pass/fail back to Coordinator |
 
 ## Framework taxonomy
 
@@ -127,6 +147,7 @@ Composition  ComposedPrompt                     src/frameworks/composed.py
 - **Spec stack depth = complexity** — simple projects: 2 layers; enterprise: 5+
 - **FABER_LOG_PROMPTS=true** logs each `build()` output — use when debugging which
   layer produced a bad output
+- **Kuzu IS the GNN model, not just storage** — every milestone grows the graph schema (new node/edge types). Each project run writes a new instance subgraph. The verification analysis written after each milestone proof is the ML signal (labeled training instance). The GNN is queryable live from M3 onward — agents retrieve structurally similar prior projects by graph topology, not text similarity.
 - **VOICE is retired** — replaced by COSTAR + PersonaLayer + ConstitutionalAI
 
 ## Implementing a new agent

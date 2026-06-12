@@ -25,6 +25,8 @@ six research papers spanning 2022–2025.
 
 ## Research Foundations
 
+### Prompt engineering + agent composition
+
 | Paper | Authors | Year | Core thesis |
 |---|---|---|---|
 | [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903) | Wei et al., Google Brain | NeurIPS 2022 | Intermediate reasoning steps dramatically improve complex task performance in LLMs |
@@ -36,7 +38,28 @@ six research papers spanning 2022–2025.
 | [Prompt Chaining or Stepwise Prompt? Refinement in Text Summarization](https://aclanthology.org/2024.findings-acl.449/) | Sun et al. | ACL Findings 2024 | Empirical proof: chained prompts (separate draft/critique/refine) consistently outperform monolithic prompts combining all stages |
 | [Layered Multi-Prompt Engineering for Pre-Trained LLMs](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12493772) | US Patent 12493772 | 2025 | Industry validation — vector-store-driven layered prompt assembly; layers retrieved and composed for specific use cases |
 
-**The key synthesis**: DSPy says *make it composable*. Meta-Prompting says *one conductor, many specialists*. ACL 2024 says *chains beat monoliths empirically*. Constitutional AI says *always close the verification loop*. Together they constitute the theoretical foundation for Faber's design.
+**The key synthesis**: DSPy says *make it composable*. Meta-Prompting says *one conductor, many specialists*. ACL 2024 says *chains beat monoliths empirically*. Constitutional AI says *always close the verification loop*. Together they constitute the theoretical foundation for Faber's composition model.
+
+### Knowledge graph substrate — GraphRAG + GNN
+
+*The Kuzu-as-GraphRAG-with-GNN architecture originates in **Senatus (agentic-gnn)**, the predecessor
+project. Senatus had the correct architectural instinct — a council of agents backed by a Kuzu graph
+substrate — but its implementation was rigid and ad-hoc: prompts were hard-coded strings, pipelines
+were fixed, and the system could not adapt to project complexity or learn across runs.*
+
+*Faber's contribution is the prompt engineering grounding that transforms that rigid prototype into a
+dynamic, adaptive, learning system. Because prompts are now composed at runtime from orthogonal layers
+(not hard-coded), the spec stack adapts to complexity, the Spec Advisor selects languages it was not
+pre-programmed for, and the GNN accumulates signal that improves future runs. The PE framework is what
+makes the graph substrate live rather than static.*
+
+| Paper | Authors | Year | Core thesis |
+|---|---|---|---|
+| [From Local to Global: A Graph RAG Approach to Query-Focused Summarization](https://arxiv.org/abs/2404.16130) | Edge et al., Microsoft | 2024 | Graph-structured retrieval over a knowledge graph enables community-level reasoning that vector RAG cannot — the graph topology is the retrieval signal, not text similarity |
+| [Modeling Relational Data with Graph Convolutional Networks](https://arxiv.org/abs/1703.06103) | Schlichtkrull et al. | 2018 | R-GCN: each edge type carries its own learned weight matrix — the direct formulation for a graph whose edge types are semantically distinct (GROUNDS, DERIVED\_FROM, SELECTS, GENERATES…) |
+| [Heterogeneous Information Network Embedding for Meta Path Based Proximity](https://arxiv.org/abs/2208.09025) | Various | 2022+ | HIN: multiple node types + edge types in one graph; cross-type message passing. The architecture Kuzu's schema implements at each milestone |
+
+**The key synthesis for the graph layer**: GraphRAG says *topology beats embeddings for structured knowledge*. R-GCN says *each edge type is a separate learned relation — don't flatten them*. HIN says *agent outputs, spec artifacts, code artifacts, and test results can cohabit one graph if the schema is typed*. Together they position Kuzu not as a persistence layer but as a **live, queryable learning substrate** that grows one schema layer per Faber milestone.
 
 ---
 
@@ -458,14 +481,60 @@ The model sees a flat prompt at runtime, not "layers."
 
 ---
 
+## The Knowledge Graph Substrate
+
+*Derived from Senatus (agentic-gnn). Kuzu is not a persistence layer — it is the system's learning model.*
+
+Every milestone grows the Kuzu schema by adding new node types and edge types. Each project run
+writes a new **heterogeneous instance subgraph** — structurally identical to prior runs, different
+attributes. The GNN (R-GCN formulation) learns patterns across these parallel instances.
+
+The **verification analysis written after each milestone** (the "Verified:" section in BACKLOG.md)
+is the ML signal: a structured observation of which brief → composition → selection → confidence →
+revision path was taken. It is a labeled training instance, not documentation.
+
+**Each milestone owns its own schema.** There is no single unified graph schema defined upfront.
+Each milestone introduces only the node and edge types its layer proof required. These heterogeneous
+subgraphs cohabit Kuzu and are connected by **cross-schema comparison edges** written by the
+milestone's verification analysis.
+
+**The feedback IS the ML pass.** Every milestone's verification is comparative — M3 against M2,
+M4 against M3. That comparison is not documentation: it is the cross-schema edge written between
+the two subgraphs. The edge carries the delta as properties (`confidence_delta`, `step_count`,
+`evaluation_depth`, `revised`, `cai_principle_triggered`). The GNN learns by traversing *across*
+these edges, not within a single milestone's subgraph. The learning signal lives in the topology
+of comparison.
+
+| Milestone | Its own subgraph schema | Cross-schema edge to prior | Signal on the edge |
+|---|---|---|---|
+| M1 | `FrameworkLayer`, `ComposedChain`, `COMPOSES` | — | — |
+| M2 | `SpecRun`, `SpecSelection`, `PRODUCED`, `USES_CHAIN` | — (first runs) | — |
+| M3 | `ReasoningStep`, `GROUNDS_REASONING` | `M2_SpecRun → REASONING_ADDS → M3_SpecRun` | `confidence_delta`, `step_count`, `evaluation_depth` |
+| M4 | `RevisionEvent`, `TRIGGERED_REVISION`, `REVISED_TO` | `M3_SpecRun → VERIFICATION_ADDS → M4_SpecRun` | `revised`, `cai_principle`, `confidence_delta` |
+| M9–M11 | `Requirement`, `Specification`, `GROUNDS`, `DERIVED_FROM` | `SpecRun → SPEC_STACK_ADDS → SpecStackRun` | `layer_depth`, `stack_confidence` |
+| M14–M18 | `CodeArtifact`, `GherkinScenario`, `TestResult` | `SpecStackRun → CODE_GENERATES → BuildRun` | `first_gen_correct`, `test_coverage` |
+
+**GraphRAG vs vector RAG:** Faber's graph is built from *structured agent outputs* (forced tool-use
+with typed schemas), not from text extraction. The topology is semantically precise. The cross-schema
+edges carry deltas that no embedding can represent — "adding reasoning increased per-concern evaluation
+depth from a single paragraph to 7 explicit steps" is a graph property, not a text similarity score.
+
+---
+
 ## The Central Claim
 
 > Faber is a **meta-prompting system** (Suzgun & Kalai, 2024) in which each agent
 > prompt is a **composed chain of orthogonal framework layers** (DSPy, 2023),
 > verified by a **critique-revision loop** (Constitutional AI, 2022), with
 > the council's decisions made auditable by **explicit reasoning traces**
-> (CoT + ReAct). The composition itself — not any individual technique —
-> is the architectural contribution.
+> (CoT + ReAct). Every agent output is persisted as a typed node or edge in a
+> **live GraphRAG + GNN substrate** (Kuzu, derived from Senatus (agentic-gnn)) that grows
+> one schema layer per milestone and enables topology-based retrieval across
+> all prior project runs.
+>
+> Two architectural contributions:
+> 1. **The composition** — not any individual technique, but their systematic layering
+> 2. **The graph substrate** — Kuzu as a live R-GCN whose schema IS the milestone roadmap
 
 ---
 
