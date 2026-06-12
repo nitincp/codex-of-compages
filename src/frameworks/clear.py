@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CLEARSession:
+    _dimension = "Structure"
     context: str = ""
     layering: str = ""
     execute: str = ""

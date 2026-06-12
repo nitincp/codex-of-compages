@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 @dataclass
 class PersonaLayer:
+    _dimension = "Technique"
     role: str = ""
     background: str = ""
     priorities: str = ""

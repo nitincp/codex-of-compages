@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ReActLoop:
+    _dimension = "Reasoning"
     thought_prompt: str = ""
     action_options: list[str] = field(default_factory=list)
     observation_note: str = ""

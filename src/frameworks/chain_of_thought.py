@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ChainOfThought:
+    _dimension = "Reasoning"
     steps: list[str] = field(default_factory=list)
     preamble: str = "Think through this step by step before producing your final answer."
 

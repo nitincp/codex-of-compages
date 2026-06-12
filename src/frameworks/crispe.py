@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CRISPEPrompt:
+    _dimension = "Structure"
     capacity: str = ""
     role: str = ""
     insight: str = ""

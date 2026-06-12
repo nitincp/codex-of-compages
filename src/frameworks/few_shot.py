@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class FewShot:
+    _dimension = "Technique"
     examples: list[tuple[str, str]] = field(default_factory=list)
     preamble: str = "Here are examples to guide the format and style of your output:"
 

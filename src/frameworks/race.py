@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 @dataclass
 class RACEPrompt:
+    _dimension = "Structure"
     role: str = ""
     action: str = ""
     context: str = ""

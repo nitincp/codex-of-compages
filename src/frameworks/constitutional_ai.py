@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ConstitutionalAI:
+    _dimension = "Verification"
     principles: list[str] = field(default_factory=list)
     revise_note: str = (
         "If any principle is violated, revise your output before producing the final result."

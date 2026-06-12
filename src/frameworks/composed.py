@@ -31,7 +31,9 @@ class ComposedPrompt:
         for layer in self.layers:
             text = layer.build()
             if text and text.strip():
-                parts.append(text.strip())
+                dimension = getattr(layer, "_dimension", "Unknown")
+                label = f"# [{dimension}: {type(layer).__name__}]"
+                parts.append(f"{label}\n{text.strip()}")
         result = DIVIDER.join(parts)
         if os.getenv("FABER_LOG_PROMPTS", "").lower() == "true":
             layer_names = ", ".join(type(layer).__name__ for layer in self.layers)

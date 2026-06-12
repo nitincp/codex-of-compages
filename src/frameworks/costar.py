@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 @dataclass
 class COSTARPrompt:
+    _dimension = "Structure"
     context: str = ""
     objective: str = ""
     style: str = "Formal notation with plain-English rationale"
