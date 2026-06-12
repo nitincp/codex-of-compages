@@ -85,6 +85,46 @@ OPP-3 `available_when` condition **partially met** — M2 baseline seeded but th
 
 ---
 
+## M3 — Spec Advisor, COSTAR+CoT (available from 2026-06-12)
+
+**Seeded nodes:** `SpecRun` × 6 (3 runs × 2 briefs), `REASONING_ADDS` × 6 cross-schema edges  
+**Persistent DB:** `data/kuzu` — run `python3 -m src.milestones.m3.run` to add a subgraph  
+**AnalysisNote schema evolved at M3:** added `milestone`, `hypothesis_id`, `direction`, `metric_before`, `metric_after`
+
+### Observed signals (M3, 3-run analysis, 2026-06-12)
+
+**Confirmed across 3 runs** (`python3 -m src.milestones.m3.run` × 3, model: claude-sonnet-4-6):
+
+| Brief | Lang | Layer | Conf mean | Conf range | Lat mean | Steps mean | Just chars mean |
+|---|---|---|---|---|---|---|---|
+| simple | OpenAPI | api | 0.977 | 0.010 | 22,814ms | 6.67 | 889 |
+| complex | TLA+ | system | 0.970 | **0.000** | 25,401ms | 8.67 | 1,310 |
+
+Note: all runs linked to `m2-20260612-130704` for REASONING_ADDS delta computation.
+
+**Hypothesis resolutions:**
+
+| ID | Hypothesis | Result | Evidence |
+|---|---|---|---|
+| H1 | CoT token density (175) → reasoning depth | **confirmed** | 6/6 runs: `evaluation_depth=per_concern`, ≥5 steps naming candidate langs |
+| H5 | M2→M3 delta dominated by CoT (≈175 tokens) | **confirmed** | M2 budget 115 → M3 budget 290 (+175, exactly CoT; zero COSTAR change) |
+| H6 | CoT narrows complex conf_range (0.040 → <0.020) | **confirmed (exceeded)** | Complex range collapsed to **0.000** — all 3 runs: 0.970 exact |
+| H7 | Complexity-latency inversion persists at M3 | **refuted** | M3 complex(25,401ms) > simple(22,814ms) — reversed; CoT output volume dominates |
+| H8 | M3 just_char > M2 for complex, not simple | **refuted** | simple +16.8% (761→889), complex −1.2% (1326→1310) — CoT front-loads complex reasoning into steps |
+
+**New signal (m3-candidate-rejection-asymmetry):**  
+`adds_candidate_rejection=True`: simple 3/3, complex 1/3.  
+Simple briefs always explicitly dismiss TLA+/Alloy/Event-B. Complex: TLA+ dominance is obvious — dismissal is often implicit rather than stated.
+
+**REASONING_ADDS edge deltas** (M2 run `m2-20260612-130704` → M3 runs):  
+- Both briefs: `confidence_delta ≈ 0.000` — M2 confidence for this specific run already matched M3.  
+- The delta signal lives in `step_count` (0→5–9) and `evaluation_depth` (unknown→per_concern), not confidence.
+
+AnalysisNote nodes written: `m3-cot-reasoning-depth`, `m3-prompt-budget-delta`, `m3-complex-confidence-lock`, `m3-latency-inversion-reversed`, `m3-justification-delta`, `m3-candidate-rejection-asymmetry`  
+New schema fields: `milestone`, `hypothesis_id`, `direction`, `metric_before`, `metric_after` — backfilled with neutral defaults on all pre-M3 notes.
+
+---
+
 ## Opportunities
 
 ### OPP-1: Reasoning-layer token delta (M1 → M3)
@@ -196,11 +236,11 @@ the framework file changed between runs — the A/B comparison is not clean.
 
 | ID | Hypothesis | Testable at | Status |
 |---|---|---|---|
-| H1 | ChainOfThought token density (175) correlates with reasoning depth in M3 output | M3 | open |
+| H1 | ChainOfThought token density (175) correlates with reasoning depth in M3 output | M3 | **confirmed** — 6/6 per_concern, ≥5 named-candidate steps |
 | H2 | PersonaLayer low expansion (0.265) → low impact on SME output variance | M5 | open |
 | H3 | COSTAR vs CLEARSession in Structure slot produces measurable spec quality delta | M2-variant | open |
 | H4 | ConstitutionalAI revision rate < 30% when confidence threshold ≥ 0.7 | M4 | open |
-| H5 | M2→M3 token delta is dominated by ChainOfThought contribution (≈175 tokens) | M3 | open |
-| H6 | M3 CoT will narrow complex confidence range (0.040 → <0.020) via deliberate reasoning | M3 | open |
-| H7 | Complexity-latency inversion (complex faster than simple) persists at M3 due to signal clarity, not output length | M3 | open |
-| H8 | M3 justification char count > M2 for complex briefs (CoT adds reasoning context) but not for simple (already saturated) | M3 | open |
+| H5 | M2→M3 token delta is dominated by ChainOfThought contribution (≈175 tokens) | M3 | **confirmed** — +175 exactly CoT; COSTAR unchanged |
+| H6 | M3 CoT will narrow complex confidence range (0.040 → <0.020) via deliberate reasoning | M3 | **confirmed (exceeded)** — range = 0.000 |
+| H7 | Complexity-latency inversion (complex faster than simple) persists at M3 | M3 | **refuted** — reversed; complex 2.6s slower due to more output tokens |
+| H8 | M3 justification > M2 for complex, not simple | M3 | **refuted** — simple +16.8%, complex −1.2%; CoT front-loads complex into steps |

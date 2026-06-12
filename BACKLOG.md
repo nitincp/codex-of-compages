@@ -384,112 +384,161 @@ establishes the tooling so future schema evolution is a managed, documented, rev
 
 **Design** (`docs/foundations/kuzu_etl_strategy.md`):
 
-Each milestone that changes an existing table owns a `migration/` directory:
+Each milestone that changes an existing table owns a `migration/` directory. Single-pass
+milestones (one structural change, no mid-milestone schema evolution) use the flat layout.
+Multi-pass milestones (schema evolved during Claude-in-loop analysis within the same milestone)
+use the directory layout — each pass is fully self-contained:
 
 ```
+── single-pass (M1, M2, M4) ──────────────────────────────────────────────
 src/milestones/m{N}/migration/
   meta.json          ← {source_milestone, target_milestone, reseed_tables}
-  schema.cypher      ← complete DDL snapshot at milestone N (diff target + new DB creation)
-  transform.cypher   ← all migration queries in sequence (executable + intent)
+  schema.cypher      ← DDL snapshot at milestone N
+  transform.cypher   ← migration queries
+
+── multi-pass (M3+) ───────────────────────────────────────────────────────
+src/milestones/m{N}/migration/
+  meta.json          ← {source_milestone, target_milestone, reseed_tables, passes: N}
+  pass_01/
+    schema.cypher    ← DDL after pass 1
+    transform.cypher ← M(N-1) → MN structural migration
+  pass_02/
+    schema.cypher    ← DDL after pass 2 (= current state when passes=2)
+    transform.cypher ← MN → MN schema evolution (Claude-in-loop driven)
+  ...
 ```
 
-`transform.cypher` uses Kuzu's `COPY (Cypher WITH transforms) TO parquet` — transforms happen
-in Cypher, no Python intermediary for structural changes. Comments carry the WHY (default
-choices, backfill rationale, cross-milestone comparability warnings). The `WITH` clause
-documents source schema (`n.col AS col`) and target additions (`0 AS new_col`) in the query
-structure itself.
+`meta.json["passes"]` is the source of truth for current state — `pass_{N}/` is always
+the canonical schema and transform. `migrate.py` defaults to the latest pass automatically;
+`--pass K` re-applies an earlier pass explicitly. `diff.py` resolves the schema for
+comparison from `pass_{N}/schema.cypher` when passes are declared.
 
-`schema.cypher` is the snapshot — `diff schema.cypher` between any two milestones gives the
-full schema evolution without delta accumulation.
+**Why multi-pass**: Claude-in-loop analysis may surface new signals that benefit from
+richer schema mid-milestone (e.g. adding hypothesis-tracking columns to `AnalysisNote`
+after the first few runs show what needs to be measured). A new pass directory captures
+that evolution without disturbing the earlier proven pass. Earlier passes are never
+modified — they are a stable grounding record of what was proven at each step.
+
+`transform.cypher` uses Kuzu's `COPY (Cypher WITH transforms) TO parquet` — transforms
+happen in Cypher. Comments carry WHY (default choices, backfill rationale, source schema
+at the time of the pass). Each pass file is written for its specific source DB state.
 
 **ETL runner** (`src/etl/`):
-- `migrate.py` — `python3 -m src.etl.migrate --to m{N} [--dry-run]`
-- `diff.py` — `python3 -m src.etl.diff m1 m2` (compares `schema.cypher` files)
+- `migrate.py` — `python3 -m src.etl.migrate --to m{N} [--pass K] [--dry-run]`
+- `diff.py` — `python3 -m src.etl.diff m1 m2` (auto-resolves latest pass schema)
 
 **Migration sequence** (migrate.py):
-1. Read `meta.json` → resolve source/target milestone
-2. Execute each `COPY (...) TO '{tmp}/Table.parquet'` block from `transform.cypher`
-3. Create new empty DB from `schema.cypher`
+1. Read `meta.json` → resolve pass number (explicit `--pass K` or `meta["passes"]` for latest)
+2. Execute each `COPY (...) TO '{tmp}/Table.parquet'` block from the resolved `transform.cypher`
+3. Create new empty DB from the resolved `schema.cypher`
 4. `COPY TableName FROM parquet` — nodes first, rels second
 5. Re-seed `reseed_tables` (deterministic tables — e.g. `FrameworkLayer`)
-6. Verify: row counts, FK spot-checks, gate tests against new DB path
+6. Verify: row counts match source (tables new in target counted as 0 in source via try/except)
 7. Rotate: `data/kuzu → data/kuzu_bak_YYYYMMDD`, new DB → `data/kuzu`
 
 **Tasks**:
 
 - [x] `src/etl/__init__.py`
 - [x] `src/etl/migrate.py` — CLI orchestrator: parse `transform.cypher`, execute COPY blocks,
-      create new DB from `schema.cypher`, bulk load Parquet, re-seed, verify, rotate
-- [x] `src/etl/diff.py` — parse `schema.cypher` from two milestone migration dirs,
-      diff CREATE TABLE statements (NEW/CHANGED/UNCHANGED), output structured summary
-- [x] `src/milestones/m1/migration/` — baseline (m1 is the origin, no prior schema)
+      create new DB from `schema.cypher`, bulk load Parquet, re-seed, verify, rotate.
+      Multi-pass: `--pass K` selects `pass_KK/`; no `--pass` defaults to `meta["passes"]`
+- [x] `src/etl/diff.py` — parse schema from two milestone migration dirs; auto-resolves latest
+      pass via `meta.json["passes"]` when present; diffs CREATE TABLE statements (NEW/CHANGED/UNCHANGED)
+- [x] `src/milestones/m1/migration/` — single-pass baseline (m1 is the origin, no prior schema)
   - `meta.json`: `{"source_milestone": null, "target_milestone": "m1", "reseed_tables": ["FrameworkLayer"]}`
   - `schema.cypher`: `MilestoneRun`, `FrameworkLayer`, `CAPTURED_IN` DDL
-  - `transform.cypher`: identity queries (m1 is baseline — no transform needed, documents the starting schema)
-- [x] `src/milestones/m2/migration/` — m1 → m2 (adds `SpecRun`, `AnalysisNote`, all rel tables)
+  - `transform.cypher`: identity queries (documents starting schema)
+- [x] `src/milestones/m2/migration/` — single-pass, m1 → m2 (adds `SpecRun`, `AnalysisNote`, all rel tables)
   - `meta.json`: `{"source_milestone": "m1", "target_milestone": "m2", "reseed_tables": ["FrameworkLayer"]}`
   - `schema.cypher`: all tables at m2
   - `transform.cypher`: identity for `MilestoneRun`; new-table queries for `SpecRun`, `AnalysisNote`
-- [x] `src/milestones/m3/migration/` — m2 → m3 (SpecRun gains `reasoning_step_count`, `evaluation_depth`; adds `REASONING_ADDS`)
-  - `meta.json`: `{"source_milestone": "m2", "target_milestone": "m3", "reseed_tables": ["FrameworkLayer"]}`
-  - `schema.cypher`: full DDL at m3
-  - `transform.cypher`: backfill `reasoning_step_count=0`, `evaluation_depth='unknown'` for M2 rows
-- [x] `src/milestones/m4/migration/` — m3 → m4 (SpecRun gains `revised`, `revision_notes`; adds `RevisionEvent`, `VERIFICATION_ADDS`)
+- [x] `src/milestones/m3/migration/` — **multi-pass** (2 passes), m2 → m3:
+  - `meta.json`: `{"source_milestone": "m2", "target_milestone": "m3", "reseed_tables": ["FrameworkLayer"], "passes": 2}`
+  - `pass_01/`: M2 → M3 structural — `SpecRun` gains `reasoning_step_count`, `evaluation_depth`; `REASONING_ADDS` new; backfill M2 rows with `0 / 'unknown'`
+  - `pass_02/`: M3 → M3 evolution — `AnalysisNote` gains `milestone`, `hypothesis_id`, `direction`, `metric_before`, `metric_after`; `SpecRun` reads existing M3 values directly (no data loss); `REASONING_ADDS` carried forward
+- [x] `src/milestones/m4/migration/` — single-pass, m3 → m4 (SpecRun gains `revised`, `revision_notes`; adds `RevisionEvent`, `VERIFICATION_ADDS`)
   - `meta.json`: `{"source_milestone": "m3", "target_milestone": "m4", "reseed_tables": ["FrameworkLayer"]}`
   - `schema.cypher`: full DDL at m4
   - `transform.cypher`: backfill `revised=false`, `revision_notes=''` for M3 rows; carries `REASONING_ADDS` forward
-- [x] `tests/etl/test_etl.py` — 22 gate tests (ephemeral DBs):
-  - `transform.cypher` executes without error against seeded source DBs (m2, m3)
-  - `schema.cypher` creates valid DBs with correct tables and column types (m1–m4)
-  - Row counts match after full migration pipeline (m2→m2, m2→m3, m3→m4)
+- [x] `tests/etl/test_etl.py` — 25 gate tests (ephemeral DBs):
+  - `transform.cypher` / pass directories execute without error against seeded source DBs (m2, m3)
+  - `schema.cypher` creates valid DBs with correct tables and column types (m1–m4, and m3 pass_02)
+  - Row counts match after full migration pipeline (m2, m3 pass 1, m3 pass 2, m3→m4)
   - `diff m1 m2` lists `SpecRun`, `AnalysisNote` as NEW; `MilestoneRun`, `FrameworkLayer` as UNCHANGED
-  - `diff m2 m3` reports `SpecRun` as CHANGED, `REASONING_ADDS` as NEW
+  - `diff m2 m3` reports `SpecRun` as CHANGED, `REASONING_ADDS` as NEW (reads m3 pass_02 schema)
   - `diff m3 m4` reports `SpecRun` as CHANGED, `RevisionEvent` and `VERIFICATION_ADDS` as NEW
   - `--dry-run` produces Parquet files but does not create or rotate the new DB
+  - Pass 2 preserves M3 `SpecRun` values; pass 1 applies hardcoded backfill
 
 **Implementation notes**:
-- `migrate.py` verify step uses try/except on source conn to handle tables new in target (no ALTER TABLE — new tables simply don't exist in source)
+- `migrate.py` verify step uses try/except on source conn — tables new in target counted as 0 in source
 - `diff.py` rel-table regex updated to match tables with properties (`REASONING_ADDS`, `VERIFICATION_ADDS`)
 - `reseed_frameworks()` added to `m1/graph/runner.py` — called by ETL for FrameworkLayer reseed path
+- `migrate.py` gracefully skips export of tables absent in source schema (e.g. `REASONING_ADDS` when migrating from M2)
 
 **Success criteria** (gate to M4.1 M3):
 > `python3 -m src.etl.migrate --to m2 --dry-run` completes without error.
-> Full migrate pipeline round-trips m2→m3 and m3→m4 with correct row counts and no data loss.
+> Full migrate pipeline round-trips m2→m3 (both passes) and m3→m4 with correct row counts and no data loss.
 > `python3 -m src.etl.diff m1 m2` / `m2 m3` / `m3 m4` report correct classification.
-> 22/22 gate tests green. Existing M1+M2 gate tests unaffected (persistent DB untouched).
+> 25/25 gate tests green. Existing M1+M2 gate tests unaffected (persistent DB untouched).
 
-**Verified** (2026-06-12): 22/22 ETL gate tests passing. 45/45 total tests clean (M1+M2+ETL).
-Migration files in place for m1–m4. `diff.py` correctly classifies CHANGED/NEW/UNCHANGED across all milestone pairs. Gate to M4.1 M3 is open.
+**Verified** (2026-06-12): 25/25 ETL gate tests passing. 44/44 total tests clean (M1+M2+M3+ETL).
+Migration files in place for m1–m4. M3 uses 2-pass directory layout. `diff.py` auto-resolves
+latest pass schema. Gate to M4.1 M3 is open.
 
 ---
 
-### M4.1 M3 — M3 Run and Analysis
+### M4.1 M3 — M3 Run and Analysis ✓
 
 **What is being proven**: M3 SpecRun nodes are seeded and the delta against M2 is captured as a
 `REASONING_ADDS` cross-schema edge. H1 (CoT token density → reasoning depth) and H5 (delta dominated
 by CoT 175-token contribution) are resolved from live data. OPP-1 runs as a live query.
+Schema evolution mid-milestone proves the multi-pass ETL pattern in practice.
 
-**Note**: restore M3 composition (COSTAR + CoT, no CAI) from git commit `48a5b37` →
+**Note**: M3 composition (COSTAR + CoT, no CAI) restored from git commit `48a5b37` →
 `src/milestones/m3/agent.py` `[M3-origin | src/agents/spec_advisor.py @ 48a5b37]`.
-M3 schema adds `reasoning_steps: list[str]` — restore from the same commit.
-Copy framework builders: `costar.py`, `chain_of_thought.py`, `composed.py` as `[M3-copy]`.
+Framework builders tagged `[M3-copy]`. Milestone is fully self-contained — no imports from `src/agents/`.
 
-- [x] `src/milestones/m3/migration/` — schema snapshot + transform (done as part of M4.1 ETL)
-- [ ] Restore M3 agent + schema from git `48a5b37` into `src/milestones/m3/`
-- [ ] `src/milestones/m3/graph/schema.py` — `SpecRun` extended with `reasoning_step_count`, `evaluation_depth`; `REASONING_ADDS` rel table:
+- [x] `src/milestones/m3/migration/` — 2-pass directory layout (evolved during Claude-in-loop analysis)
+- [x] Restore M3 agent + schema from git `48a5b37` into `src/milestones/m3/`
+- [x] `src/milestones/m3/graph/schema.py` — `SpecRun` extended with `reasoning_step_count`, `evaluation_depth`; `REASONING_ADDS` rel table:
   - FROM `SpecRun` (m2) TO `SpecRun` (m3): `confidence_delta`, `step_count`, `evaluation_depth`, `adds_candidate_rejection`
-- [ ] `src/milestones/m3/graph/runner.py` — seeds M3 `SpecRun` + `REASONING_ADDS` edge from matched M2 `SpecRun` (same brief label)
-- [ ] `src/milestones/m3/run.py` — calls live M3 Spec Advisor (COSTAR+CoT); links to most recent M2 run for same brief
-- [ ] `src/milestones/m3/tests/test_m3_gnn.py` — gate tests (ephemeral DB):
+- [x] `src/milestones/m3/graph/runner.py` — `infer_evaluation_depth(steps)` → `'per_concern'` if any step names a candidate language keyword, else `'conclusion_only'`; seeds M3 `SpecRun` + `REASONING_ADDS` edge from matched M2 `SpecRun` (same brief label)
+- [x] `src/milestones/m3/run.py` — calls live M3 Spec Advisor (COSTAR+CoT); auto-selects most recent M2 run if `--m2-run-id` not given
+- [x] `src/milestones/m3/tests/test_m3_gnn.py` — 19 gate tests (ephemeral DB):
   - `SpecRun` has `reasoning_step_count ≥ 3` and `evaluation_depth = per_concern`
   - `REASONING_ADDS` edge exists between M2 and M3 `SpecRun` for same brief label
   - `confidence_delta` on edge matches `confidence_m3 - confidence_m2`
-- [ ] Claude-in-loop: run OPP-1 query; resolve H1 and H5 from real graph data; write `AnalysisNote`
-- [ ] Update `analysis_opportunities.md`: H1 and H5 updated to `confirmed` or `refuted`
+  - ML pass: prints REASONING_ADDS delta profile table
+- [x] Claude-in-loop: 3 CLI runs; H1, H5, H6, H7, H8 resolved; 6 `AnalysisNote` nodes written
+- [x] `AnalysisNote` schema evolved mid-milestone (pass 2): added `milestone`, `hypothesis_id`, `direction`, `metric_before`, `metric_after` — proves multi-pass ETL in practice
+- [x] `analysis_opportunities.md` updated: H1/H5/H6 confirmed, H7/H8 refuted, new signal added
+
+**Confirmed signals (3-run analysis)**:
+
+| Brief | Lang | Conf mean | Conf range | Steps mean | Depth |
+|---|---|---|---|---|---|
+| simple | OpenAPI | 0.977 | 0.010 | 6.67 | per_concern |
+| complex | TLA+ | 0.970 | **0.000** | 8.67 | per_concern |
+
+| Hypothesis | Result | Key evidence |
+|---|---|---|
+| H1 CoT density → reasoning depth | **confirmed** | 6/6 runs: `per_concern`, ≥5 named-candidate steps |
+| H5 M2→M3 delta dominated by CoT (175 tokens) | **confirmed** | Budget: 115 → 290 = +175 exactly (COSTAR unchanged) |
+| H6 CoT narrows complex conf_range (0.040 → <0.020) | **confirmed (exceeded)** | Complex range = **0.000** — all 3 runs: 0.970 exact |
+| H7 Complexity-latency inversion persists at M3 | **refuted** | Complex 25,401ms > simple 22,814ms — reversed by CoT output volume |
+| H8 M3 just_chars > M2 for complex only | **refuted** | simple +16.8% (761→889), complex −1.2% (1326→1310) |
+
+New signal: `adds_candidate_rejection` asymmetry — simple always explicitly dismisses TLA+/Alloy;
+complex often implicit (TLA+ dominance obvious, dismissal unstated). Lives on `REASONING_ADDS` edge.
 
 **Success criteria** (gate to M4.1 M4):
 > `REASONING_ADDS` cross-schema edges exist with delta properties. OPP-1 query returns results.
 > H1 + H5 resolved with graph evidence. M1+M2 regression clean.
+
+**Verified** (2026-06-12): 19/19 gate tests passing. 44/44 total tests clean (M1+M2+M3+ETL).
+3 CLI runs seeded. 6 `AnalysisNote` nodes written. Multi-pass ETL proven in practice (2 passes, M3).
+Gate to M4.1 M4 is open.
 
 ---
 

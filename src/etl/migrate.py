@@ -3,10 +3,29 @@ ETL migration runner — blue-green Kuzu DB rotation.
 
 Usage:
   python3 -m src.etl.migrate --to m2 [--dry-run] [--db data/kuzu]
+  python3 -m src.etl.migrate --to m3 [--dry-run]          # latest pass (from meta.json)
+  python3 -m src.etl.migrate --to m3 --pass 1 [--dry-run] # specific earlier pass
+
+Pass support:
+  Milestones may declare multiple passes in meta.json ("passes": N).
+  Each pass is a self-contained subdirectory under migration/:
+
+    migration/pass_01/schema.cypher     — schema state after pass 1
+    migration/pass_01/transform.cypher  — M(N-1) → MN structural migration
+    migration/pass_02/schema.cypher     — schema state after pass 2 (= current state)
+    migration/pass_02/transform.cypher  — analysis-driven schema evolution
+    ...
+
+  meta.json["passes"] = N means pass_NN is the current state.
+  Without --pass:  defaults to latest pass (meta.json["passes"]).
+  With --pass N:   uses migration/pass_NN/ explicitly (re-apply an earlier pass).
+
+  Milestones without "passes" in meta.json use the root migration/transform.cypher
+  and migration/schema.cypher (single-pass milestones like M1, M2).
 
 Sequence:
   1. Read migration/meta.json from target milestone
-  2. Execute COPY blocks in transform.cypher against source DB → Parquet files in tmp dir
+  2. Execute COPY blocks in transform[_NN].cypher against source DB → Parquet files in tmp dir
   3. Create new empty DB from schema.cypher (skipped on --dry-run)
   4. Bulk-load Parquet into new DB: nodes first, rels second
   5. Re-seed reseed_tables from source code
@@ -131,6 +150,7 @@ def migrate(
     target_milestone: str,
     dry_run: bool = False,
     db_path: Path = _DEFAULT_DB,
+    pass_num: int | None = None,
 ) -> None:
     mig_dir = _MILESTONES_DIR / target_milestone / "migration"
     if not mig_dir.exists():
@@ -139,7 +159,27 @@ def migrate(
     meta = json.loads((mig_dir / "meta.json").read_text())
     reseed_tables: set[str] = set(meta.get("reseed_tables", []))
     schema_path = mig_dir / "schema.cypher"
-    transform_path = mig_dir / "transform.cypher"
+
+    declared_passes = meta.get("passes")
+    resolved_pass = pass_num if pass_num is not None else declared_passes
+
+    if resolved_pass is not None:
+        pass_dir = mig_dir / f"pass_{resolved_pass:02d}"
+        if not pass_dir.exists():
+            raise FileNotFoundError(
+                f"Pass {resolved_pass} directory not found: {pass_dir}\n"
+                f"  meta.json declares {declared_passes} pass(es)."
+            )
+        transform_path = pass_dir / "transform.cypher"
+        schema_path = pass_dir / "schema.cypher"
+        if not transform_path.exists():
+            raise FileNotFoundError(f"Pass {resolved_pass} transform not found: {transform_path}")
+        if not schema_path.exists():
+            raise FileNotFoundError(f"Pass {resolved_pass} schema not found: {schema_path}")
+    else:
+        transform_path = mig_dir / "transform.cypher"
+        if not transform_path.exists():
+            raise FileNotFoundError(f"Transform not found: {transform_path}")
 
     node_tables, rel_tables = _schema_tables(schema_path)
 
@@ -156,7 +196,15 @@ def migrate(
         print(f"Exporting {len(blocks)} table(s) from {db_path} …")
         for table_name, query in blocks:
             print(f"  → {table_name}.parquet")
-            src_conn.execute(query)
+            try:
+                src_conn.execute(query)
+            except RuntimeError as exc:
+                if "does not exist" in str(exc):
+                    # Table not present in source (older schema) — skip export; the
+                    # load step will find no parquet and skip or treat as empty.
+                    print(f"    (skip export — {table_name} not in source schema)")
+                else:
+                    raise
 
         if dry_run:
             print("\n--dry-run: Parquet files written; stopping before DB creation.")
@@ -253,13 +301,15 @@ def migrate(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Kuzu ETL migration runner")
     parser.add_argument("--to", required=True, metavar="MILESTONE",
-                        help="Target milestone (e.g. m2)")
+                        help="Target milestone (e.g. m2, m3)")
+    parser.add_argument("--pass", dest="pass_num", type=int, default=None, metavar="N",
+                        help="Apply a specific numbered pass (e.g. --pass 2 uses migration/pass_02/)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Export Parquet files only; do not create or rotate DB")
     parser.add_argument("--db", default=str(_DEFAULT_DB), metavar="PATH",
                         help=f"Kuzu DB path (default: {_DEFAULT_DB})")
     args = parser.parse_args()
-    migrate(args.to, dry_run=args.dry_run, db_path=Path(args.db))
+    migrate(args.to, dry_run=args.dry_run, db_path=Path(args.db), pass_num=args.pass_num)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 -- M3 schema snapshot
--- All tables at M3: M2 tables unchanged + SpecRun extended with reasoning fields + REASONING_ADDS
+-- All tables at M3: SpecRun extended with reasoning fields + AnalysisNote extended with
+-- hypothesis tracking fields + REASONING_ADDS cross-schema edge
 
 -- M1 tables (unchanged)
 CREATE NODE TABLE MilestoneRun (
@@ -49,7 +50,12 @@ CREATE NODE TABLE SpecRun (
 
 CREATE REL TABLE SPEC_CAPTURED_IN (FROM SpecRun TO MilestoneRun);
 
--- AnalysisNote: unchanged from M2
+-- AnalysisNote: M2 columns + M3 additions
+-- milestone:       which milestone this analysis pertains to ('m1', 'm2', 'm3', ...)
+-- hypothesis_id:   hypothesis being tested ('H1', 'H5', ...) or '' for new signals
+-- direction:       'confirmed' | 'refuted' | 'new' | '' — outcome of hypothesis test
+-- metric_before:   numeric value before the milestone layer was added (e.g. M2 conf_range)
+-- metric_after:    numeric value after the milestone layer was added (e.g. M3 conf_range)
 CREATE NODE TABLE AnalysisNote (
   id STRING,
   session STRING,
@@ -58,6 +64,11 @@ CREATE NODE TABLE AnalysisNote (
   signal STRING,
   value STRING,
   note STRING,
+  milestone STRING,
+  hypothesis_id STRING,
+  direction STRING,
+  metric_before DOUBLE,
+  metric_after DOUBLE,
   PRIMARY KEY (id)
 );
 
