@@ -56,6 +56,9 @@
       }
     }
   },
-  "postCreateCommand": "bash .devcontainer/bootstrap-secrets.sh && python3.10 -m pip install -e '/workspace/.[dev]'",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "lts" }
+  },
+  "postCreateCommand": "bash .devcontainer/bootstrap-secrets.sh && python3.10 -m pip install -e '/workspace/.[dev]' && python3.10 -m playwright install chromium --with-deps && npx playwright install chromium --with-deps",
   "forwardPorts": [8000]
 }

@@ -13,6 +13,7 @@ dependencies = [
     "kuzu>=0.5.0",
     # UI
     "chainlit>=1.1.0",
+    "streamlit>=1.35.0",
     # Utilities
     "pydantic>=2.7.0",
     "python-dotenv>=1.0.0",
@@ -24,6 +25,9 @@ dev = [
     "ruff>=0.4.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "playwright>=1.44.0",
+    "pytest-playwright>=0.5.0",
+    "pytest-base-url>=2.1.0",
 ]
 
 [build-system]
