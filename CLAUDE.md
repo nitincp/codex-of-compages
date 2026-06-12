@@ -46,14 +46,15 @@ streamlit run src/ui/dashboard.py --server.port 8000
 # Inspect graph state (stop app first — Kuzu single-connection)
 python3 scripts/graph_stats.py
 
-# Lint
+# Lint + type check (ruff = style/imports; pyright = type errors)
 ruff check .
 ruff format .
+pyright src/
 
 # Tests — run per milestone to confirm layer is proven
 pytest tests/test_m0_dashboard.py --base-url http://localhost:8000  # M0 gate (start dashboard first)
-pytest tests/test_frameworks.py        # M1 gate
-pytest tests/test_spec_advisor.py      # M2-M5 gates
+pytest tests/test_m1_frameworks.py     # M1 gate
+pytest tests/test_m2_spec_advisor.py   # M2-M5 gates
 pytest tests/test_sme_chain.py         # M6 gate
 pytest tests/test_meta_chain.py        # M7 gate
 pytest tests/test_coordinator.py       # M8 gate
@@ -146,4 +147,4 @@ Composition  ComposedPrompt                     src/frameworks/composed.py
 2. If a layer in that dimension already exists for the agent, reconsider — do you need it?
 3. Create `src/frameworks/<name>.py` — dataclass with `build() -> str`
 4. Add to `src/frameworks/__init__.py`
-5. Add unit test to `tests/test_frameworks.py`
+5. Add unit test to `tests/test_m1_frameworks.py`

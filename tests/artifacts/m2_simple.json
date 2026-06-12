@@ -1,0 +1,15 @@
+{
+  "milestone": "M2",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt only",
+  "timestamp": "2026-06-12T02:37:35.647458+00:00",
+  "input": {
+    "project_brief": "CRUD todo app with REST API and a PostgreSQL backend"
+  },
+  "output": {
+    "selected_lang": "OpenAPI",
+    "layer": "api",
+    "justification": "The project is a CRUD todo application exposing a REST API backed by PostgreSQL. The primary specification concern is the API contract: defining endpoints (e.g. GET /todos, POST /todos, PUT /todos/{id}, DELETE /todos/{id}), request/response schemas, HTTP methods, status codes, and payload shapes. OpenAPI is purpose-built for this use case \u2014 it captures multi-endpoint REST surface area, request/response schema definitions, and path/query parameter contracts with precision. There are no distributed system concerns (ruling out TLA+), no complex concurrent message-passing (ruling out CML), no safety-critical refinement requirements (ruling out Event-B), and no complex relational invariants beyond simple data shapes (ruling out Alloy). The PostgreSQL backend further confirms the data model is relational and straightforward, making OpenAPI's schema constructs sufficient for payload validation alongside the REST contract.",
+    "confidence": 0.97
+  }
+}

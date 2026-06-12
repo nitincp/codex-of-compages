@@ -1,0 +1,15 @@
+{
+  "milestone": "M2",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt only",
+  "timestamp": "2026-06-12T02:37:43.617032+00:00",
+  "input": {
+    "project_brief": "multi-region e-commerce platform with eventual consistency, distributed inventory, and CQRS event sourcing"
+  },
+  "output": {
+    "selected_lang": "TLA+",
+    "layer": "system",
+    "justification": "The project exhibits three characteristics that squarely demand TLA+: (1) multi-region deployment introduces distributed concurrency where network partitions, message reordering, and replica divergence must be formally reasoned about; (2) eventual consistency is a liveness/safety property \u2014 TLA+ temporal logic operators ([]P, <>Q) allow precise expression of convergence guarantees and the absence of permanent divergence; (3) CQRS with event sourcing creates asynchronous write/read separation and append-only event streams that must be verified for ordering, idempotency, and read-model staleness bounds. Distributed inventory management further introduces contention on shared mutable state across regions, making safety properties (e.g., no oversell invariant) and liveness properties (e.g., inventory updates eventually propagate) critical to verify before implementation. TLA+ is the only language in the stack capable of modelling all three concerns \u2014 concurrency, consistency, and event-driven state transitions \u2014 within a unified, mechanically checkable framework via TLC model checking.",
+    "confidence": 0.95
+  }
+}

@@ -5,6 +5,10 @@ Tests that every builder produces correctly structured strings, omits empty opti
 fields, and that ComposedPrompt assembles layers in declared order with dimension labels.
 """
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 from src.frameworks import (
     ChainOfThought,
     CLEARSession,
@@ -327,3 +331,97 @@ def test_composed_single_layer_no_divider():
     result = ComposedPrompt([costar]).build()
     assert "---" not in result
     assert "**Context**" in result
+
+
+# ---------------------------------------------------------------------------
+# Artifact — sample build() outputs for every framework (always passes)
+# ---------------------------------------------------------------------------
+
+
+def test_save_m1_artifact():
+    """Save a JSON artifact recording sample build() output for every framework layer."""
+    artifacts_dir = Path(__file__).parent / "artifacts"
+    artifacts_dir.mkdir(exist_ok=True)
+
+    samples = {
+        "COSTARPrompt": COSTARPrompt(
+            context="REST API for a todo app",
+            objective="Select the best spec language",
+            style="Formal",
+            tone="Rigorous",
+            audience="Spec Specialist",
+            response_format="JSON",
+        ).build(),
+        "CRISPEPrompt": CRISPEPrompt(
+            capacity="TLA+ specialist",
+            role="Spec Specialist",
+            insight="Distributed system with eventual consistency",
+            statement="Generate a TLA+ spec for the inventory module",
+            personality="Precise and thorough",
+            experiment="Review your spec for completeness",
+        ).build(),
+        "CLEARSession": CLEARSession(
+            context="Spec Advisor council session",
+            layering="Domain → Component",
+            execute="Select language and justify",
+            assess="Is the selection appropriate for complexity?",
+            reflect="What changed from the prior layer?",
+        ).build(),
+        "RACEPrompt": RACEPrompt(
+            role="Spec Advisor",
+            action="Select formal specification language",
+            context="Multi-region e-commerce platform",
+            execute="Return selected_lang and justification",
+        ).build(),
+        "PersonaLayer": PersonaLayer(
+            role="Senior Fintech PM",
+            background="10 years in payments and compliance",
+            priorities="Regulatory compliance and transaction velocity",
+            communication_style="Direct, precise, risk-aware",
+        ).build(),
+        "ChainOfThought": ChainOfThought(
+            steps=[
+                "Identify the layer concerns (concurrency, data shape, API surface)",
+                "Evaluate candidate languages against those concerns",
+                "Select the best fit and state confidence",
+            ],
+            preamble="Think step by step before selecting.",
+        ).build(),
+        "ReActLoop": ReActLoop(
+            thought_prompt="Assess output quality against confidence threshold.",
+            action_options=["proceed", "retry", "escalate"],
+            observation_note="Record what changed after the revision.",
+        ).build(),
+        "ConstitutionalAI": ConstitutionalAI(
+            principles=[
+                "Justification references specific project characteristics",
+                "Confidence is >= 0.7 for a non-trivial project",
+                "All candidate languages are evaluated before selecting",
+            ],
+            revise_note="If any principle is violated, revise the output before returning.",
+        ).build(),
+        "FewShot": FewShot(
+            examples=[
+                ("OpenAPI", "openapi: 3.0.0\ninfo:\n  title: Todo API\n  version: 1.0.0"),
+                ("TLA+", "---- MODULE Inventory ----\nVARIABLES stock\n===================="),
+            ],
+            preamble="Examples of valid formal spec outputs:",
+        ).build(),
+        "ComposedPrompt (COSTAR + Persona + CAI)": ComposedPrompt(
+            [
+                COSTARPrompt(context="spec selection task", objective="pick best language"),
+                PersonaLayer(role="Spec Advisor"),
+                ConstitutionalAI(principles=["justification is non-empty"]),
+            ]
+        ).build(),
+    }
+
+    artifact = {
+        "milestone": "M1",
+        "description": "Framework builder sample outputs — baseline for composition layer tests",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "frameworks_tested": list(samples.keys()),
+        "samples": samples,
+    }
+    (artifacts_dir / "m1_frameworks.json").write_text(json.dumps(artifact, indent=2))
+    assert (artifacts_dir / "m1_frameworks.json").exists()
