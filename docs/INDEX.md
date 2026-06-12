@@ -41,7 +41,10 @@ One file per milestone. **Created at milestone start** (hypothesis + method + ga
 | M00 | Infrastructure | [M00_infrastructure.md](evidence/M00_infrastructure.md) | Complete |
 | M01 | Layer 0: Framework builders | [M01_framework_builders.md](evidence/M01_framework_builders.md) | Complete |
 | M02 | Layer 1: Single agent, structure only | [M02_spec_advisor_structure.md](evidence/M02_spec_advisor_structure.md) | Complete |
-| M03–M13 | Subsequent layers | Create from [TEMPLATE.md](evidence/TEMPLATE.md) when milestone starts | — |
+| M03 | Layer 2: Add Reasoning | *(create from TEMPLATE when started)* | Complete — no evidence file yet |
+| M04 | Layer 3: Add Verification | *(create from TEMPLATE when started)* | Complete — no evidence file yet |
+| M4.1 | GNN PoC: PE evolution captured and queryable | [M04_1_graphrag_gnn_poc.md](evidence/M04_1_graphrag_gnn_poc.md) | In progress (M4.1 M0–M1 confirmed) |
+| M05–M13 | Subsequent layers | Create from [TEMPLATE.md](evidence/TEMPLATE.md) when milestone starts | — |
 
 ---
 

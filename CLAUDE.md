@@ -50,46 +50,103 @@ M18 Ultimate: Faber generates its own dashboard
 # Install dependencies
 pip install -e ".[dev]"
 
-# Run the dashboard (primary UI — milestone runner + artifact viewer)
-streamlit run src/ui/dashboard.py --server.port 8000
+# Gate tests — validate one milestone (ephemeral Kuzu, fast)
+pytest src/milestones/m1/tests/   # M1 gate
+pytest src/milestones/m2/tests/   # M2 gate (once M2 is built)
+# ... and so on per milestone
 
-# Chainlit shell (interactive phases — not started by default)
-# chainlit run src/ui/app.py --port 8001
+# Milestone runner — seed one subgraph into persistent Kuzu DB
+python3 -m src.milestones.m1.run            # auto-generates run_id
+python3 -m src.milestones.m1.run my-run-id  # explicit run_id
 
-# Inspect graph state (stop app first — Kuzu single-connection)
-python3 scripts/graph_stats.py
+# Run N times to accumulate N subgraphs for comparison:
+python3 -m src.milestones.m1.run
+python3 -m src.milestones.m1.run
+python3 -m src.milestones.m1.run
 
-# Lint + type check (ruff = style/imports; pyright = type errors)
+# Lint + type check
 ruff check .
 ruff format .
 pyright src/
-
-# Tests — run per milestone to confirm layer is proven
-pytest tests/test_m0_dashboard.py --base-url http://localhost:8000  # M0 gate (start dashboard first)
-pytest tests/test_m1_frameworks.py     # M1 gate
-pytest tests/test_m2_spec_advisor.py   # M2-M5 gates
-pytest tests/test_sme_chain.py         # M6 gate
-pytest tests/test_meta_chain.py        # M7 gate
-pytest tests/test_coordinator.py       # M8 gate
-pytest tests/test_graph_store.py       # M9 gate
-pytest                                 # full suite (excludes playwright — needs live server)
 ```
 
 ## Testing methodology
 
-Each milestone has two test layers:
+Each milestone has two tiers:
 
-1. **Unit / integration tests** (`pytest tests/test_<milestone>.py`) — fast, no server needed,
-   run in CI. These are the primary gate for M1+.
+1. **Gate tests** (`pytest src/milestones/m{N}/tests/`) — validate schema correctness and
+   data quality for a single run. Use an ephemeral tmp Kuzu DB. Fast, isolated, no persistent
+   state. These are the gate to proceed to the next milestone.
 
-2. **Playwright UI tests** (`pytest tests/test_m0_dashboard.py --base-url http://localhost:8000`)
-   — verify the Streamlit dashboard renders correctly with live browser automation.
-   Start the dashboard first, then run.  Used for M0 infra verification and any milestone
-   that adds new dashboard UI behaviour.
+2. **Milestone runner** (`python3 -m src.milestones.m{N}.run`) — seeds one subgraph into
+   the persistent DB (`data/kuzu`). Each invocation is one command; run it N times to create
+   N subgraphs. Comparison and ML pass analysis is done by Claude ad-hoc after N runs,
+   not in the test suite.
 
-The Streamlit dashboard (`src/ui/dashboard.py`) is the primary UI — it runs milestone test
-suites and displays agent cards + artifacts. Chainlit (`src/ui/app.py`) is a stub kept for
-the interactive agent chain wired in at M7.
+**Separation is strict:** gate tests never write to the persistent DB; the runner never runs
+pytest. Claude decides when to run the runner and when to run gate tests.
+
+## Milestone layout
+
+Each milestone is fully self-contained in `src/milestones/m{N}/`:
+
+```
+src/milestones/m{N}/
+  __init__.py           # milestone purpose + GNN contribution
+  run.py                # CLI: python3 -m src.milestones.m{N}.run [run-id]
+  frameworks/           # copies of relevant framework builders (tagged [MN-origin] or [MN-copy])
+  graph/
+    schema.py           # Kuzu node/rel tables owned by this milestone
+    runner.py           # extract() + seed(conn, run_id) — pure capture, no analysis
+  tests/
+    test_m{N}.py        # gate tests (ephemeral DB, single run)
+```
+
+**Framework file tagging:** files copied from an earlier milestone carry a comment tag:
+- `# [M1-origin | src/frameworks/costar.py]` — original source
+- `# [M2-copy | identical to milestones/m1/frameworks/costar.py]` — copied unchanged
+
+**Kuzu schema cohabitation:** all milestones write to the same `data/kuzu` database.
+Each milestone owns its own node/rel table names (no collisions). Cross-milestone edges
+(e.g., `REASONING_ADDS`, `VERIFICATION_ADDS`) link subgraphs from different milestones.
+
+**No artifact files.** Data lives in Kuzu. `dump()` exists in runner.py as an optional dev
+utility but is never called automatically. Do not create per-session JSON/JSONL exports.
+
+## Claude's role
+
+Claude is **both** code writer and analytical orchestrator in this project.
+
+**As code writer:** implements milestone structure, schema, runners, and tests following
+the patterns above.
+
+**As analyst (Claude-in-loop):**
+1. Runs `python3 -m src.milestones.m{N}.run` N times to accumulate subgraphs
+2. Writes and executes ad-hoc Python scripts to query the persistent Kuzu DB
+3. Reads the output, decides what signals are worth persisting — no predetermined schema
+4. Creates `AnalysisNote` nodes and `ANALYZED` edges on the fly using
+   `CREATE NODE TABLE IF NOT EXISTS AnalysisNote (...)` and
+   `CREATE REL TABLE IF NOT EXISTS ANALYZED (FROM AnalysisNote TO ...)`
+5. Updates `analysis_opportunities.md` with confirmed findings and forward hypotheses
+
+**`analysis_opportunities.md`** (repo root) is the cross-session grounding document.
+Read it at the start of any analytical session. It contains confirmed signals, open
+hypotheses, and Cypher queries ready to run when their `available_when` condition is met.
+
+**The feedback loop:**
+```
+seed(conn)          raw features in Kuzu          (code, deterministic)
+        ↓
+N × run command     N subgraphs accumulate        (Claude commands)
+        ↓
+ad-hoc query script surfaces signal               (Claude writes + runs)
+        ↓
+AnalysisNote nodes  findings written back         (Claude decides schema)
+        ↓
+analysis_opportunities.md updated                 (Claude records hypotheses)
+```
+
+Analysis is NOT done in code. `runner.py` captures; Claude analyzes.
 
 ## Environment
 
@@ -147,7 +204,9 @@ Composition  ComposedPrompt                     src/frameworks/composed.py
 - **Spec stack depth = complexity** — simple projects: 2 layers; enterprise: 5+
 - **FABER_LOG_PROMPTS=true** logs each `build()` output — use when debugging which
   layer produced a bad output
-- **Kuzu IS the GNN model, not just storage** — every milestone grows the graph schema (new node/edge types). Each project run writes a new instance subgraph. The verification analysis written after each milestone proof is the ML signal (labeled training instance). The GNN is queryable live from M3 onward — agents retrieve structurally similar prior projects by graph topology, not text similarity.
+- **Kuzu IS the GNN model, not just storage** — every milestone grows the graph schema (new node/edge types). Each run writes a new `MilestoneRun` subgraph anchored by `CAPTURED_IN` edges. `AnalysisNote` nodes written by Claude connect via `ANALYZED` edges and form the ML signal layer. The GNN is queryable live from M1 onward — Claude and agents retrieve prior findings by graph traversal, not text search.
+- **MilestoneRun is the subgraph anchor** — `(FrameworkLayer)-[:CAPTURED_IN]->(MilestoneRun)`. Multiple runs of the same milestone coexist in the same DB. Always query through the run: `MATCH (r:MilestoneRun {run_id: $rid})<-[:CAPTURED_IN]-(f)`.
+- **AnalysisNote is the feedback type** — ad-hoc, schema created on the fly, connected via `ANALYZED` edges. Never harden analysis into `runner.py` — that's Claude's domain.
 - **VOICE is retired** — replaced by COSTAR + PersonaLayer + ConstitutionalAI
 
 ## Implementing a new agent

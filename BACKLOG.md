@@ -271,96 +271,161 @@ Artifacts: `tests/artifacts/m4_simple.json`, `tests/artifacts/m4_complex.json`, 
 
 ## Milestone 4.1 — GraphRAG / GNN PoC: PE Evolution Captured and Queryable
 
-**What is being proven**: the GNN substrate is not architectural intent — it is a running,
-queryable graph. The PE evolution from M1–M4 exists as real artifacts. This milestone encodes
-that history as heterogeneous subgraphs in Kuzu, writes the cross-schema comparison edges that
-are the ML signal, and proves a topology-based GNN query returns a structurally meaningful answer.
+**What is being proven across M4.1 M0–M4**: the GNN substrate is not architectural intent — it is a
+running, queryable graph. Each sub-milestone seeds one milestone's own subgraph into Kuzu, then Claude
+writes cross-schema comparison edges (the ML signal) and `AnalysisNote` nodes (Claude's analytical
+decisions). The sub-milestones are structured to mirror the Spec Council milestones: one GNN pass per
+proven layer.
 
-Until this milestone passes, everything written in `docs/foundations/composition_framework.md`
-and in the *Graph Architecture* section above is a claim, not a fact.
+Until all sub-milestones pass, the *Graph Architecture — GNN First* section above is a claim, not a fact.
 
-### The two kinds of work
+**Pattern (established in M4.1 M0)**: each milestone owns `src/milestones/m{N}/graph/` with its own
+schema and runner. `python3 -m src.milestones.m{N}.run` seeds one subgraph per invocation. Claude
+analyzes via ad-hoc scripts, decides signals, writes `AnalysisNote` nodes on the fly.
+`analysis_opportunities.md` at repo root is the cross-session grounding document.
 
-**1. Seed each milestone's own subgraph** from existing artifacts — no unified schema, no
-pre-defined supergraph. Each milestone writes only the node and edge types its layer proof required:
+---
 
-| Milestone | Its subgraph | Source data |
-|---|---|---|
-| M1 | `FrameworkLayer` nodes + `COMPOSES` edges | `m1_frameworks.json` — 9 builders, each with name + dimension |
-| M2 | `SpecRun` + `SpecSelection` nodes, `PRODUCED` + `USES_CHAIN` edges | `m2_simple.json`, `m2_complex.json` |
-| M3 | `ReasoningStep` nodes, `GROUNDS_REASONING` edges (added to M2 runs) | `m3_simple.json`, `m3_complex.json` |
-| M4 | `RevisionEvent` nodes, `TRIGGERED_REVISION` + `REVISED_TO` edges | `m4_simple.json`, `m4_complex.json`, `m4_vague.json` |
+### M4.1 M0 — GNN Grounding ✓
 
-**2. Write the cross-schema comparison edges** — these are the ML signal. Each edge carries
-a feature vector extracted from the `**Verified:**` sections already written in this BACKLOG.
+**What is being proven**: the architectural pattern for all M4.1 sub-milestones — self-contained
+milestone layout, `MilestoneRun` subgraph model, runner CLI, Claude-in-loop `AnalysisNote` feedback,
+`analysis_opportunities.md` as cross-session grounding. No unified schema. No artifact files.
 
-In R-GCN terms: each edge type has its own weight matrix. The feature vector on the edge is the
-input to that matrix. The GNN learns what "adding reasoning" or "adding verification" means by
-reading these vectors across all instances of the relation.
+- [x] Self-contained milestone layout established: `src/milestones/m{N}/{run.py,frameworks/,graph/schema.py,graph/runner.py,tests/}`
+- [x] `MilestoneRun` anchor pattern: `(Node {id: "{run_id}:{name}"})-[:CAPTURED_IN]->(MilestoneRun)`
+- [x] Runner CLI: `python3 -m src.milestones.m{N}.run [run-id]` — one invocation = one subgraph; run N times for N subgraphs
+- [x] Gate test isolation: ephemeral tmp Kuzu DB, never writes to persistent `data/kuzu`
+- [x] `AnalysisNote` pattern: `CREATE NODE TABLE IF NOT EXISTS` on the fly; `ANALYZED` rel edges; schema invented per session
+- [x] `analysis_opportunities.md` created — OPP-1–OPP-7, H1–H5, Cypher queries ready to run
+- [x] Claude's analytical role documented in `CLAUDE.md` — code captures raw features; Claude decides signals
 
-`REASONING_ADDS` edge feature vector (`M2_SpecRun → M3_SpecRun`, same brief):
+**Verified**: pattern proven working. Gate test isolation confirmed. Persistent DB and ephemeral DB coexist without collision.
 
-| Feature | simple brief | complex brief | note |
-|---|---|---|---|
-| `step_count` | 7 | 8 | from m3 artifacts |
-| `evaluation_depth` | `per_concern` | `per_concern` | qualitative → encode as int (0=paragraph, 1=per_concern) |
-| `prior_depth` | `single_paragraph` | `single_paragraph` | from M3 Verified: "M2 was a single-paragraph conclusion" |
-| `confidence_m2` | **0.97** | **0.95** | from M2 Verified section — gap now closed |
-| `confidence_m3` | 0.95 | 0.93 | from m3 artifacts |
-| `confidence_delta` | **−0.02** | **−0.02** | reasoning layer lowered confidence slightly — epistemic humility: model shows its working and hedges |
-| `adds_candidate_rejection` | True | True | M3 Verified: model dismissed JSON Schema, Event-B, Alloy explicitly |
+---
 
-`VERIFICATION_ADDS` edge feature vector (`M3_SpecRun → M4_SpecRun`, same brief):
+### M4.1 M1 — M1 Run and Analysis ✓
 
-| Feature | simple | complex | vague (M4-only) |
-|---|---|---|---|
-| `confidence_delta` | 0.0 (0.95→0.95) | +0.02 (0.93→0.95) | n/a — no M3 pair |
-| `revised` | False | False | True |
-| `cai_principle_triggered` | None | None | 3 |
-| `signal_count_below_threshold` | False | False | True |
-| `assumption_inventory_added` | False | False | True |
+**What is being proven**: 9 framework builders are real `FrameworkLayer` nodes in the GNN. Multiple runs
+accumulate as distinct subgraphs. Claude-in-loop analysis surfaces real signals from the live graph
+and writes them back as `AnalysisNote` nodes.
 
-**The vague brief has no incoming `VERIFICATION_ADDS` edge** — it was introduced at M4 with no M3
-equivalent. It exists only as a `SpecRun` node connected to a `RevisionEvent`. That topological
-asymmetry (orphaned `RevisionEvent` path, no `REASONING_ADDS` predecessor) is itself a GNN signal:
-the model learns that `SpecRun` nodes with no prior-milestone predecessors are structurally distinct
-from those that evolved through the full composition chain.
+- [x] `src/milestones/m1/graph/schema.py` — `MilestoneRun`, `FrameworkLayer`, `CAPTURED_IN` tables
+  - `FrameworkLayer` PK: `"{run_id}:{name}"` — 9 nodes per run, all 9 dimensions captured
+  - Raw features: `name`, `dimension`, `build_output`, `file_path`, `file_hash`, `file_size_bytes`, `build_time_ms`, `output_char_count`, `output_token_est`
+- [x] `src/milestones/m1/graph/runner.py` — `extract()`, `seed(conn, run_id, model) → str`, `dump()` (dev util only)
+- [x] `src/milestones/m1/run.py` — `python3 -m src.milestones.m1.run [run-id] [--model MODEL]`
+- [x] `src/milestones/m1/tests/test_m1.py` — 11 tests: 8 gate + 2 ML-pass print-only; ephemeral DB; all scoped by `run_id`
+- [x] 3 CLI runs executed; persistent DB accumulated 3 subgraphs
+- [x] Claude-in-loop analysis: ad-hoc Cypher queries issued; ConstitutionalAI timing outlier identified (8.8× variance); FewShot most consistent (0.8×); noise floor established at 0.050ms
+- [x] `AnalysisNote` nodes + `ANALYZED` edges written: 12 nodes, 108 edges
 
-These edges cross milestone subgraph boundaries. The GNN learns by traversing them.
+**Verified**: 11/11 gate tests passing. Persistent DB: 3 MilestoneRun + 27 FrameworkLayer + 27 CAPTURED_IN + 12 AnalysisNote + 108 ANALYZED.
 
-### Tasks
+Confirmed signals:
+- ConstitutionalAI: 8.8× timing variance ratio; anomaly threshold `range > 0.040ms`
+- FewShot: 0.8× variance ratio — most consistent builder
+- Noise floor: max 0.050ms — M2+ ML signal is LLM latency, not build_time_ms
+- Full determinism: `build_output` and `file_hash` identical across all 3 runs
 
-- [ ] `src/graph/pe_schema.py` — register node/edge tables per milestone; no unified schema class
-- [ ] `src/graph/pe_seed.py` — milestone subgraph writers, one function per milestone:
-  - `seed_m1(kuzu_conn)` — 9 `FrameworkLayer` nodes from `m1_frameworks.json`
-  - `seed_m2(kuzu_conn)` — 2 `SpecRun` + `SpecSelection` nodes from m2 artifacts
-  - `seed_m3(kuzu_conn)` — `ReasoningStep` nodes; extend m2 runs with step data from m3 artifacts
-  - `seed_m4(kuzu_conn)` — `RevisionEvent` nodes; extend m3 runs with revision data from m4 artifacts
-- [ ] `src/graph/pe_seed.py` — `write_cross_schema_edges(kuzu_conn)`:
-  - Parse M3 and M4 `**Verified:**` sections from `BACKLOG.md`
-  - Write `REASONING_ADDS` edges between matched M2/M3 `SpecRun` pairs with delta properties
-  - Write `VERIFICATION_ADDS` edges between matched M3/M4 pairs with delta properties
-- [ ] `scripts/graph_stats.py` extended — print: node counts per type, edge counts per type,
-  cross-schema edges with their delta properties
-- [ ] `tests/test_m4_1_gnn.py`:
-  - 9 `FrameworkLayer` nodes present
-  - 7 `SpecRun` nodes present across all milestone subgraphs
-  - `REASONING_ADDS` edges exist for simple and complex brief pairs; `step_count ≥ 3` on both
-  - `VERIFICATION_ADDS` edges exist; `revised=True` on the vague pair, `revised=False` on strong pairs
-  - **Cross-schema traversal**: start at `FrameworkLayer(ConstitutionalAI)` → traverse
-    `COMPOSES → ComposedChain(M4) ← USES_CHAIN ← SpecRun(m4_vague) → TRIGGERED_REVISION →
-    RevisionEvent` — full path resolves in one query
-  - **First GNN query** (topology-based retrieval): given a new run with `revised=False`,
-    `step_count ≥ 5`, `evaluation_depth=per-concern` — retrieve the most structurally similar
-    prior `SpecRun` by traversing `REASONING_ADDS` and `VERIFICATION_ADDS` edges.
-    Assert: returns `m4_complex` or `m3_complex`, not `m4_vague`.
+---
+
+### M4.1 M2 — M2 Run and Analysis
+
+**What is being proven**: M2 Spec Advisor calls (COSTAR only — the M2 composition, not the current M4 agent)
+are captured as `SpecRun` nodes. Claude queries confidence distribution and latency across runs.
+OPP-3 (COSTAR baseline) becomes testable.
+
+**Note**: `src/agents/spec_advisor.py` is currently the M4 composition (COSTAR + CoT + CAI).
+The M2 composition (COSTAR only, 4-field schema) must be restored from git commit `05f373d`
+and frozen in `src/milestones/m2/` — the milestone is self-contained and never imports from `src/agents/`.
+
+- [ ] Restore M2 agent from git: `git show 05f373d:src/agents/spec_advisor.py` → `src/milestones/m2/agent.py`
+  - Tag: `# [M2-origin | src/agents/spec_advisor.py @ 05f373d]`
+  - Composition: COSTAR only — no CoT, no CAI
+  - Tool schema: 4 fields only (`selected_lang`, `layer`, `justification`, `confidence`)
+- [ ] Restore M2 schema from git: `git show 05f373d:src/agents/schemas.py` → `src/milestones/m2/schema.py`
+  - Tag: `# [M2-origin | src/agents/schemas.py @ 05f373d]`
+  - 4 fields: `selected_lang`, `layer`, `justification`, `confidence` — no `reasoning_steps`, `revised`, `revision_notes`
+- [ ] Copy framework builders into `src/milestones/m2/frameworks/`:
+  - `costar.py`, `composed.py` — tagged `[M2-copy | milestones/m1/frameworks/<name>.py]`
+- [ ] `src/milestones/m2/graph/schema.py` — `SpecRun` node table:
+  - `run_id`, `milestone`, `brief_label`, `selected_lang`, `layer`, `confidence`, `justification_char_count`, `latency_ms`, `model`, `timestamp`; PK: `"{run_id}:{brief_label}"`
+- [ ] `src/milestones/m2/graph/runner.py` — `seed(conn, output, brief_label, run_id, model)` — one `SpecRun` per call; `CAPTURED_IN` to `MilestoneRun`
+- [ ] `src/milestones/m2/run.py` — `python3 -m src.milestones.m2.run [run-id] [--model MODEL]`
+  - Imports from `src.milestones.m2.agent` — NOT `src.agents.spec_advisor`
+  - Calls M2 agent for simple + complex briefs; seeds both `SpecRun` nodes
+- [ ] `src/milestones/m2/tests/test_m2_gnn.py` — gate tests (ephemeral DB):
+  - `SpecRun` present with `milestone='m2'`, `confidence` in [0, 1], `latency_ms > 0`
+  - Simple brief → `selected_lang` in `{OpenAPI, JSON Schema}`; complex → `selected_lang` in `{TLA+, CML}`
+  - `justification_char_count > 0`
+- [ ] Claude-in-loop: run 3× via CLI; query confidence distribution, latency; write `AnalysisNote` for signals found
+- [ ] Update `analysis_opportunities.md`: OPP-3 `available_when` met; M2 latency baseline recorded
+
+**Success criteria** (gate to M4.1 M3):
+> M2 composition frozen in milestone folder. `SpecRun` nodes seeded from live M2 agent calls.
+> Claude-in-loop analysis surfaces ≥1 persisted signal. M1 regression clean.
+
+---
+
+### M4.1 M3 — M3 Run and Analysis
+
+**What is being proven**: M3 SpecRun nodes are seeded and the delta against M2 is captured as a
+`REASONING_ADDS` cross-schema edge. H1 (CoT token density → reasoning depth) and H5 (delta dominated
+by CoT 175-token contribution) are resolved from live data. OPP-1 runs as a live query.
+
+**Note**: restore M3 composition (COSTAR + CoT, no CAI) from git commit `48a5b37` →
+`src/milestones/m3/agent.py` `[M3-origin | src/agents/spec_advisor.py @ 48a5b37]`.
+M3 schema adds `reasoning_steps: list[str]` — restore from the same commit.
+Copy framework builders: `costar.py`, `chain_of_thought.py`, `composed.py` as `[M3-copy]`.
+
+- [ ] Restore M3 agent + schema from git `48a5b37` into `src/milestones/m3/`
+- [ ] `src/milestones/m3/graph/schema.py` — `SpecRun` extended with `reasoning_step_count`, `evaluation_depth`; `REASONING_ADDS` rel table:
+  - FROM `SpecRun` (m2) TO `SpecRun` (m3): `confidence_delta`, `step_count`, `evaluation_depth`, `adds_candidate_rejection`
+- [ ] `src/milestones/m3/graph/runner.py` — seeds M3 `SpecRun` + `REASONING_ADDS` edge from matched M2 `SpecRun` (same brief label)
+- [ ] `src/milestones/m3/run.py` — calls live M3 Spec Advisor (COSTAR+CoT); links to most recent M2 run for same brief
+- [ ] `src/milestones/m3/tests/test_m3_gnn.py` — gate tests (ephemeral DB):
+  - `SpecRun` has `reasoning_step_count ≥ 3` and `evaluation_depth = per_concern`
+  - `REASONING_ADDS` edge exists between M2 and M3 `SpecRun` for same brief label
+  - `confidence_delta` on edge matches `confidence_m3 - confidence_m2`
+- [ ] Claude-in-loop: run OPP-1 query; resolve H1 and H5 from real graph data; write `AnalysisNote`
+- [ ] Update `analysis_opportunities.md`: H1 and H5 updated to `confirmed` or `refuted`
+
+**Success criteria** (gate to M4.1 M4):
+> `REASONING_ADDS` cross-schema edges exist with delta properties. OPP-1 query returns results.
+> H1 + H5 resolved with graph evidence. M1+M2 regression clean.
+
+---
+
+### M4.1 M4 — M4 Run and Analysis + First Topology Query
+
+**What is being proven**: M4 `RevisionEvent` nodes and `VERIFICATION_ADDS` cross-schema edges are
+seeded. The first topology-based GNN retrieval is proven — given a run profile, the graph returns
+the structurally most similar prior run by traversing cross-schema edges, not by keyword.
+
+**Note**: restore M4 composition (COSTAR + CoT + CAI) from git commit `a966ce9` →
+`src/milestones/m4/agent.py` `[M4-origin | src/agents/spec_advisor.py @ a966ce9]`.
+M4 schema adds `revised: bool`, `revision_notes: str` — restore from the same commit.
+Copy framework builders: `costar.py`, `chain_of_thought.py`, `constitutional_ai.py`, `composed.py` as `[M4-copy]`.
+
+- [ ] Restore M4 agent + schema from git `a966ce9` into `src/milestones/m4/`
+- [ ] `src/milestones/m4/graph/schema.py` — `RevisionEvent` node table; `VERIFICATION_ADDS` rel table:
+  - `RevisionEvent`: `run_id`, `brief_label`, `revised`, `cai_principle_triggered`, `assumption_inventory_added`
+  - `VERIFICATION_ADDS` FROM M3 `SpecRun` TO M4 `SpecRun`: `revised`, `confidence_delta`, `cai_principle_triggered`, `signal_count_below_threshold`, `assumption_inventory_added`
+- [ ] `src/milestones/m4/graph/runner.py` — seeds `RevisionEvent` + `VERIFICATION_ADDS` edge from matched M3 `SpecRun`
+- [ ] `src/milestones/m4/run.py` — calls live M4 Spec Advisor for all three briefs (simple, complex, vague)
+- [ ] `src/milestones/m4/tests/test_m4_gnn.py` — gate tests (ephemeral DB):
+  - `RevisionEvent`: `revised=True` for vague brief, `revised=False` for strong briefs
+  - `VERIFICATION_ADDS` edge exists with correct `confidence_delta` and `cai_principle_triggered`
+  - Vague brief `SpecRun` has no incoming `REASONING_ADDS` — topological asymmetry preserved
+  - **First GNN query** (topology-based retrieval): given `{revised=False, step_count ≥ 5, evaluation_depth=per_concern}`, traverse `REASONING_ADDS` + `VERIFICATION_ADDS`; assert result is `m4_complex` or `m3_complex`, not `m4_vague`
+- [ ] Claude-in-loop: run OPP-2 (CAI revision rate), OPP-5 (cross-milestone token stack); resolve H4; write `AnalysisNote`
+- [ ] Update `analysis_opportunities.md`: OPP-2, OPP-5 completed; H4 resolved
 
 **Success criteria** (gate to M5):
-> Each milestone's own subgraph is seeded from real artifacts in Kuzu.
-> Cross-schema comparison edges exist between milestone subgraphs with delta properties.
-> A topology-based traversal across cross-schema edges returns a structurally similar prior run —
-> proving the graph learns by comparison, not by keyword, and that the ML signal
-> encoded in the Verified sections is now a queryable fact in the graph.
+> `VERIFICATION_ADDS` cross-schema edges seeded with delta properties. Vague brief topological asymmetry preserved.
+> Topology-based retrieval returns structurally correct result. CAI revision rate measured, H4 resolved.
+> M1+M2+M3 regression clean.
 
 ---
 
