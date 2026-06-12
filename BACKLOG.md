@@ -59,31 +59,29 @@ Source: extracted and adapted from Senatus project.
 
 ---
 
-## Milestone 1 — Layer 0 PoC: Framework Builders
+## Milestone 1 — Layer 0 PoC: Framework Builders ✓
 
 **What is being proven**: the atomic base layer. All framework builders produce correctly structured output and can be composed. Nothing else can be built until this is proven.
 
-- [ ] Implement `src/frameworks/costar.py` — `COSTARPrompt.build() -> str`
-- [ ] Implement `src/frameworks/crispe.py` — `CRISPEPrompt.build() -> str`
-- [ ] Implement `src/frameworks/clear.py` — `CLEARSession.build() -> str`
-- [ ] Implement `src/frameworks/race.py` — `RACEPrompt.build() -> str`
-- [ ] Implement `src/frameworks/persona.py` — `PersonaLayer.build() -> str`
-- [ ] Implement `src/frameworks/chain_of_thought.py` — `ChainOfThought.build() -> str`
-- [ ] Implement `src/frameworks/react.py` — `ReActLoop.build() -> str`
-- [ ] Implement `src/frameworks/constitutional_ai.py` — `ConstitutionalAI.build() -> str`
-- [ ] Implement `src/frameworks/few_shot.py` — `FewShot.build() -> str`
-- [ ] Implement `src/frameworks/composed.py` — `ComposedPrompt(layers=[...]).build() -> str`
+- [x] Implement `src/frameworks/costar.py` — `COSTARPrompt.build() -> str`
+- [x] Implement `src/frameworks/crispe.py` — `CRISPEPrompt.build() -> str`
+- [x] Implement `src/frameworks/clear.py` — `CLEARSession.build() -> str`
+- [x] Implement `src/frameworks/race.py` — `RACEPrompt.build() -> str`
+- [x] Implement `src/frameworks/persona.py` — `PersonaLayer.build() -> str`
+- [x] Implement `src/frameworks/chain_of_thought.py` — `ChainOfThought.build() -> str`
+- [x] Implement `src/frameworks/react.py` — `ReActLoop.build() -> str`
+- [x] Implement `src/frameworks/constitutional_ai.py` — `ConstitutionalAI.build() -> str`
+- [x] Implement `src/frameworks/few_shot.py` — `FewShot.build() -> str`
+- [x] Implement `src/frameworks/composed.py` — `ComposedPrompt(layers=[...]).build() -> str`
   - Assembles layers in order, separated by `\n\n---\n\n`
   - Each layer labelled with its dimension in a comment (for logging/debugging)
-- [ ] `tests/test_frameworks.py`:
+- [x] `tests/test_frameworks.py`:
   - Each builder: all fields → all section headers present in correct order
   - Empty optional field → section omitted
   - `ComposedPrompt([costar, persona, cai]).build()` → sections appear in correct sequence
   - Dimension label present for each layer in composed output
 
-**Success criteria** (gate to M2):
-> All builders produce correctly structured strings. ComposedPrompt assembles them
-> in the declared order. Each layer is independently unit-testable.
+**Verified**: 22/22 unit tests passing. All builders produce correctly structured strings. ComposedPrompt assembles in declared order with `# [Dimension: ClassName]` labels. Each layer independently unit-tested.
 
 ---
 
