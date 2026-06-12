@@ -52,6 +52,39 @@ Key observations:
 
 ---
 
+---
+
+## M2 — Spec Advisor, COSTAR-only (available from 2026-06-12)
+
+**Seeded nodes:** `SpecRun` × 6 (3 runs × 2 briefs)  
+**Persistent DB:** `data/kuzu` — run `python3 -m src.milestones.m2.run` to add a subgraph  
+**Rel table:** `SPEC_CAPTURED_IN (FROM SpecRun TO MilestoneRun)` — M2-owned (distinct from M1's CAPTURED_IN)
+
+### Observed signals (M2, 3-run analysis, 2026-06-12)
+
+**Confirmed across 3 runs** (`python3 -m src.milestones.m2.run` × 3, model: claude-sonnet-4-6):
+
+| Brief | Lang | Layer | Conf mean | Conf range | Lat mean (warm) | Lat range | Just chars mean |
+|---|---|---|---|---|---|---|---|
+| simple | OpenAPI | api | 0.977 | 0.010 | 11,476ms | 271ms | 761 |
+| complex | TLA+ | system | 0.957 | 0.040 | 8,566ms | 1,170ms | 1,326 |
+
+_Warm latency excludes run-1 cold-start (27,567ms for simple; 9,272ms for complex)._
+
+Key observations:
+- **Lang/layer selection fully deterministic**: OpenAPI/api for simple, TLA+/system for complex — 0 variance. COSTAR alone drives unambiguous choices for clear-cut briefs.
+- **Confidence ceiling is high**: simple 0.977 (tight), complex 0.957 (looser). Complex is 2% lower and 4× more variable — complexity → uncertainty confirmed.
+- **Cold-start penalty**: run-1 simple = 2.40× slower than warm state; complex barely affected (1.08×). Filter run-1 in latency analysis; warm state is the signal.
+- **Complexity-latency inversion**: complex briefs are ~2.6s _faster_ than simple at warm state despite 1.74× longer justification text. Unambiguous signals → fast token selection even for long output.
+- **Justification density**: complex = 1,326 chars (11% variance), simple = 761 chars (28% variance). Shorter outputs are proportionally less stable.
+
+AnalysisNote nodes written: `m2-lang-determinism`, `m2-confidence-baseline`, `m2-latency-cold-start`, `m2-latency-warm-baseline`, `m2-justification-density`  
+Rel tables added: `ANALYZED_SPEC (FROM AnalysisNote TO SpecRun)`, `ANALYZED_RUN (FROM AnalysisNote TO MilestoneRun)`
+
+OPP-3 `available_when` condition **partially met** — M2 baseline seeded but the A/B variant (CLEARSession substitution) still requires a separate run. See updated OPP-3 below.
+
+---
+
 ## Opportunities
 
 ### OPP-1: Reasoning-layer token delta (M1 → M3)
@@ -83,15 +116,19 @@ If revision rate is near zero, CAI may be too permissive (principles too weak).
 ---
 
 ### OPP-3: Structure framework A/B — COSTAR vs CLEARSession
-**Available when:** M2 seeded + an M2 variant run with CLEARSession substituted  
-**Query:**
+**Available when:** M2 seeded ✓ + an M2-variant run with CLEARSession substituted (not yet done)  
+**M2 baseline established:** OpenAPI/0.977 conf / 11,476ms warm latency (simple); TLA+/0.957 / 8,566ms (complex)  
+**Query (once variant run exists):**
 ```cypher
-MATCH (r:SpecRun)
-WHERE r.structure_framework IN ['COSTARPrompt', 'CLEARSession']
-RETURN r.structure_framework, avg(r.confidence), avg(r.output_char_count)
+MATCH (s:SpecRun)
+WHERE s.milestone IN ['m2', 'm2-clear-variant']
+RETURN s.milestone, s.brief_label, s.selected_lang, avg(s.confidence), avg(s.justification_char_count)
+ORDER BY s.brief_label, s.milestone
 ```
 **What it proves:** Does CLEARSession's extra 27 tokens (142 vs 115) translate to
-higher confidence or longer spec output? Tests whether token density ≈ output quality.
+higher confidence or longer spec output? Tests whether token density ≈ output quality.  
+**New question from M2 data:** Given that M2 lang selection is fully deterministic (0 variance),
+does CLEARSession change the selection at all, or does it only affect justification length/confidence?
 
 ---
 
@@ -164,3 +201,6 @@ the framework file changed between runs — the A/B comparison is not clean.
 | H3 | COSTAR vs CLEARSession in Structure slot produces measurable spec quality delta | M2-variant | open |
 | H4 | ConstitutionalAI revision rate < 30% when confidence threshold ≥ 0.7 | M4 | open |
 | H5 | M2→M3 token delta is dominated by ChainOfThought contribution (≈175 tokens) | M3 | open |
+| H6 | M3 CoT will narrow complex confidence range (0.040 → <0.020) via deliberate reasoning | M3 | open |
+| H7 | Complexity-latency inversion (complex faster than simple) persists at M3 due to signal clarity, not output length | M3 | open |
+| H8 | M3 justification char count > M2 for complex briefs (CoT adds reasoning context) but not for simple (already saturated) | M3 | open |

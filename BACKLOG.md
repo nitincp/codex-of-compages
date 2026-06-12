@@ -340,31 +340,38 @@ OPP-3 (COSTAR baseline) becomes testable.
 The M2 composition (COSTAR only, 4-field schema) must be restored from git commit `05f373d`
 and frozen in `src/milestones/m2/` — the milestone is self-contained and never imports from `src/agents/`.
 
-- [ ] Restore M2 agent from git: `git show 05f373d:src/agents/spec_advisor.py` → `src/milestones/m2/agent.py`
+- [x] Restore M2 agent from git: `git show 05f373d:src/agents/spec_advisor.py` → `src/milestones/m2/agent.py`
   - Tag: `# [M2-origin | src/agents/spec_advisor.py @ 05f373d]`
   - Composition: COSTAR only — no CoT, no CAI
   - Tool schema: 4 fields only (`selected_lang`, `layer`, `justification`, `confidence`)
-- [ ] Restore M2 schema from git: `git show 05f373d:src/agents/schemas.py` → `src/milestones/m2/schema.py`
+- [x] Restore M2 schema from git: `git show 05f373d:src/agents/schemas.py` → `src/milestones/m2/schema.py`
   - Tag: `# [M2-origin | src/agents/schemas.py @ 05f373d]`
   - 4 fields: `selected_lang`, `layer`, `justification`, `confidence` — no `reasoning_steps`, `revised`, `revision_notes`
-- [ ] Copy framework builders into `src/milestones/m2/frameworks/`:
+- [x] Copy framework builders into `src/milestones/m2/frameworks/`:
   - `costar.py`, `composed.py` — tagged `[M2-copy | milestones/m1/frameworks/<name>.py]`
-- [ ] `src/milestones/m2/graph/schema.py` — `SpecRun` node table:
+- [x] `src/milestones/m2/graph/schema.py` — `SpecRun` node table + `SPEC_CAPTURED_IN` rel:
   - `run_id`, `milestone`, `brief_label`, `selected_lang`, `layer`, `confidence`, `justification_char_count`, `latency_ms`, `model`, `timestamp`; PK: `"{run_id}:{brief_label}"`
-- [ ] `src/milestones/m2/graph/runner.py` — `seed(conn, output, brief_label, run_id, model)` — one `SpecRun` per call; `CAPTURED_IN` to `MilestoneRun`
-- [ ] `src/milestones/m2/run.py` — `python3 -m src.milestones.m2.run [run-id] [--model MODEL]`
+  - Note: M2 uses `SPEC_CAPTURED_IN (FROM SpecRun TO MilestoneRun)` — Kuzu 0.11.3 cannot add a second FROM type to an existing rel table, so M2 owns a distinct anchoring rel name
+- [x] `src/milestones/m2/graph/runner.py` — `seed(conn, output, brief_label, run_id, model, latency_ms)` — one `SpecRun` per call; `SPEC_CAPTURED_IN` to `MilestoneRun`
+- [x] `src/milestones/m2/run.py` — `python3 -m src.milestones.m2.run [run-id] [--model MODEL]`
   - Imports from `src.milestones.m2.agent` — NOT `src.agents.spec_advisor`
   - Calls M2 agent for simple + complex briefs; seeds both `SpecRun` nodes
-- [ ] `src/milestones/m2/tests/test_m2_gnn.py` — gate tests (ephemeral DB):
+- [x] `src/milestones/m2/tests/test_m2_gnn.py` — 12 gate tests (ephemeral DB), all passing:
   - `SpecRun` present with `milestone='m2'`, `confidence` in [0, 1], `latency_ms > 0`
   - Simple brief → `selected_lang` in `{OpenAPI, JSON Schema}`; complex → `selected_lang` in `{TLA+, CML}`
-  - `justification_char_count > 0`
-- [ ] Claude-in-loop: run 3× via CLI; query confidence distribution, latency; write `AnalysisNote` for signals found
-- [ ] Update `analysis_opportunities.md`: OPP-3 `available_when` met; M2 latency baseline recorded
+  - `justification_char_count > 0`; node ids scoped to run; layer values valid
+- [x] Claude-in-loop: run 3× via CLI; query confidence distribution, latency; write `AnalysisNote` for signals found
+  - 5 AnalysisNote nodes: `m2-lang-determinism`, `m2-confidence-baseline`, `m2-latency-cold-start`, `m2-latency-warm-baseline`, `m2-justification-density`
+  - 30 ANALYZED_SPEC + 20 ANALYZED_RUN edges written
+  - New rel tables: `ANALYZED_SPEC (FROM AnalysisNote TO SpecRun)`, `ANALYZED_RUN (FROM AnalysisNote TO MilestoneRun)`
+- [x] Update `analysis_opportunities.md`: M2 section added; OPP-3 baseline established; H6/H7/H8 added
 
 **Success criteria** (gate to M4.1 M3):
 > M2 composition frozen in milestone folder. `SpecRun` nodes seeded from live M2 agent calls.
 > Claude-in-loop analysis surfaces ≥1 persisted signal. M1 regression clean.
+
+**Verified** (2026-06-12): 12/12 gate tests passing. 3 CLI runs seeded. 5 signals persisted to GNN.
+M1 regression: 11/11 clean. M4.1 M2 is **proven** — gate to M4.1 M3 is open.
 
 ---
 
