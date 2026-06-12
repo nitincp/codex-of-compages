@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class SpecAdvisorOutput(BaseModel):
-    """M3: structure (COSTAR) + reasoning (ChainOfThought) Spec Advisor output."""
+    """M4: structure (COSTAR) + reasoning (ChainOfThought) + verification (ConstitutionalAI)."""
 
     selected_lang: str = Field(
         description="The formal specification language selected for this layer "
@@ -32,4 +32,13 @@ class SpecAdvisorOutput(BaseModel):
         "Each step should reference a specific concern (e.g. concurrency, data shape) "
         "or a candidate language evaluated.",
         default_factory=list,
+    )
+    revised: bool = Field(
+        description="True if the Constitutional AI critique found a principle violation "
+        "and the output was revised. False if all principles were satisfied on the first pass.",
+        default=False,
+    )
+    revision_notes: str = Field(
+        description="Description of what was changed and why. Empty string if revised=False.",
+        default="",
     )

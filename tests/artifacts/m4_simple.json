@@ -1,0 +1,26 @@
+{
+  "milestone": "M4",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt + ChainOfThought + ConstitutionalAI",
+  "timestamp": "2026-06-12T03:09:31.185295+00:00",
+  "input": {
+    "project_brief": "CRUD todo app with REST API and a PostgreSQL backend"
+  },
+  "output": {
+    "selected_lang": "OpenAPI",
+    "layer": "api",
+    "justification": "The project's dominant technical concern is a multi-endpoint REST API (CRUD operations: GET, POST, PATCH/PUT, DELETE over a /todos resource) with structured request/response payloads backed by a relational PostgreSQL schema. OpenAPI directly models this surface: it formally captures HTTP methods, path and query parameters, request bodies, response schemas, and status codes in a single machine-readable contract. The 'todo' resource data shape (fields such as id, title, completed, created_at) is expressed via OpenAPI's embedded JSON Schema component definitions, eliminating the need for a separate JSON Schema artefact. No distributed concurrency, session protocols, relational invariants, or safety-critical refinement requirements are present, which rules out TLA+, CML, Alloy, and Event-B respectively. OpenAPI covers all identified concerns (API surface + data shapes) with no unnecessary overhead for this project's complexity level.",
+    "confidence": 0.95,
+    "reasoning_steps": [
+      "Step 1: Identify primary technical concerns. The project is a CRUD todo app with a REST API and a PostgreSQL backend. The key concerns are: (a) REST API surface \u2014 endpoints, request/response shapes, HTTP methods, status codes; (b) data shape \u2014 the 'todo' resource schema (fields, types, validation); (c) persistence layer \u2014 PostgreSQL, which implies relational data but no distributed concurrency or safety-critical constraints.",
+      "Step 2a: Evaluate OpenAPI against the REST API surface concern. OpenAPI is purpose-built for REST API contracts: it formally describes multi-endpoint services (e.g. GET /todos, POST /todos, PATCH /todos/{id}, DELETE /todos/{id}), request/response schemas, HTTP status codes, and path/query parameters. This directly matches the primary deliverable of this project.",
+      "Step 2b: Evaluate JSON Schema against the data shape concern. JSON Schema could describe the 'todo' resource payload in isolation, but it cannot express the full API surface (HTTP methods, routing, status codes, authentication). It is a subset of what OpenAPI provides \u2014 OpenAPI embeds JSON Schema for its component schemas \u2014 so it is strictly less expressive for this project.",
+      "Step 2c: Evaluate Pydantic against the data model concern. Pydantic models would be appropriate for an internal Python-specific validation layer, but this is an API-layer specification task, not a Python-codebase-internal one. It lacks the ability to describe the full REST contract.",
+      "Step 3: Weigh candidates. OpenAPI covers both the API surface (endpoints, HTTP verbs, status codes) and the data shapes (todo resource schema via embedded JSON Schema components) in a single artefact. The project has no distributed concurrency (ruling out TLA+/CML), no access-control relational invariants (ruling out Alloy), and no safety-critical certification requirements (ruling out Event-B). OpenAPI is the clear best fit with the least overhead.",
+      "Step 4: Determine the spec layer. The REST API contract between clients and the server is the 'api' layer of the spec stack.",
+      "Step 5: Confidence assessment. The project brief provides two concrete technical signals \u2014 REST API and CRUD data operations over PostgreSQL \u2014 which map unambiguously to OpenAPI at the api layer. Confidence is high: 0.95."
+    ],
+    "revised": false,
+    "revision_notes": ""
+  }
+}

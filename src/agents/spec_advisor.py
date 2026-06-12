@@ -1,10 +1,10 @@
 """
-SpecAdvisorAgent — M3: COSTAR (Structure) + ChainOfThought (Reasoning).
+SpecAdvisorAgent — M4: COSTAR (Structure) + ChainOfThought (Reasoning) + ConstitutionalAI (Verification).
 
 Selects the optimal formal specification language for a given project brief.
-ConstitutionalAI (Verification) is added in M4.
+CAI critique-revision loop self-corrects weak outputs and passes strong ones through.
 
-Composition chain (M3): COSTARPrompt → ChainOfThought
+Composition chain (M4): COSTARPrompt → ChainOfThought → ConstitutionalAI
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from anthropic.types import ToolParam
 
 from src.agents.base import BaseAgent
 from src.agents.schemas import SpecAdvisorOutput
-from src.frameworks import ChainOfThought, ComposedPrompt, COSTARPrompt
+from src.frameworks import ChainOfThought, ComposedPrompt, COSTARPrompt, ConstitutionalAI
 
 _TOOL_NAME = "report_spec_selection"
 
@@ -55,6 +55,21 @@ _TOOL_SCHEMA: ToolParam = cast(
                     "minimum": 0.0,
                     "maximum": 1.0,
                 },
+                "revised": {
+                    "type": "boolean",
+                    "description": (
+                        "Set to true if the Constitutional AI critique found a principle "
+                        "violation and you revised your output. False if all principles "
+                        "were satisfied on the first pass."
+                    ),
+                },
+                "revision_notes": {
+                    "type": "string",
+                    "description": (
+                        "Describe what was changed and why after the CAI critique. "
+                        "Empty string if revised=false."
+                    ),
+                },
             },
             "required": [
                 "reasoning_steps",
@@ -62,6 +77,8 @@ _TOOL_SCHEMA: ToolParam = cast(
                 "layer",
                 "justification",
                 "confidence",
+                "revised",
+                "revision_notes",
             ],
         },
     },
@@ -80,11 +97,7 @@ Available formal specification languages and their ideal use cases:
 
 
 class SpecAdvisorAgent(BaseAgent[SpecAdvisorOutput]):
-    """
-    Selects the optimal formal specification language for a project brief.
-
-    M2: COSTAR structure layer only — baseline for comparison in later milestones.
-    """
+    """Selects the optimal formal specification language for a project brief."""
 
     def _build_system_prompt(self) -> str:
         costar = COSTARPrompt(
@@ -115,7 +128,10 @@ class SpecAdvisorAgent(BaseAgent[SpecAdvisorOutput]):
                 "selected_lang (exact language name from the list above), "
                 "layer (system/domain/component/api), justification "
                 "(why this language fits — must cite specific project characteristics), "
-                "confidence (0.0–1.0)."
+                "confidence (0.0–1.0), "
+                "revised (true if the CAI critique caused you to change your output, "
+                "false if all principles were satisfied on the first pass), "
+                "revision_notes (what changed and why; empty string if revised=false)."
             ),
         )
         cot = ChainOfThought(
@@ -133,7 +149,28 @@ class SpecAdvisorAgent(BaseAgent[SpecAdvisorOutput]):
                 "covers the identified concerns.",
             ]
         )
-        return ComposedPrompt(layers=[costar, cot]).build()
+        cai = ConstitutionalAI(
+            principles=[
+                "The justification must reference at least one specific technical characteristic "
+                "of the project (e.g. concurrency model, consistency requirements, API surface, "
+                "data shapes, safety constraints). Generic statements that could apply to any "
+                "project are not acceptable.",
+                "The reasoning_steps must include at least one step that names a candidate "
+                "specification language by name and explicitly evaluates its fit against a "
+                "specific characteristic of this project.",
+                "If the project brief is vague or underspecified — providing fewer than two "
+                "concrete technical signals — you must lower confidence below 0.75 AND set "
+                "revised=true, with revision_notes explaining what assumptions were required.",
+            ],
+            revise_note=(
+                "If any principle is violated: revise your selection, justification, and "
+                "reasoning_steps accordingly. Set revised=true in the tool call and describe "
+                "what changed in revision_notes. "
+                "If all principles are satisfied, set revised=false and revision_notes to an "
+                "empty string."
+            ),
+        )
+        return ComposedPrompt(layers=[costar, cot, cai]).build()
 
     def run(self, project_brief: str) -> SpecAdvisorOutput:
         """Select a spec language for the given project brief."""
