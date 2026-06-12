@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class SpecAdvisorOutput(BaseModel):
-    """M2 baseline: structure-only Spec Advisor output."""
+    """M3: structure (COSTAR) + reasoning (ChainOfThought) Spec Advisor output."""
 
     selected_lang: str = Field(
         description="The formal specification language selected for this layer "
@@ -26,4 +26,10 @@ class SpecAdvisorOutput(BaseModel):
         description="Confidence in the selection, 0.0 (uncertain) to 1.0 (certain).",
         ge=0.0,
         le=1.0,
+    )
+    reasoning_steps: list[str] = Field(
+        description="Ordered reasoning steps taken to reach the selection. "
+        "Each step should reference a specific concern (e.g. concurrency, data shape) "
+        "or a candidate language evaluated.",
+        default_factory=list,
     )

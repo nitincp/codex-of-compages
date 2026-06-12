@@ -107,14 +107,14 @@ Source: extracted and adapted from Senatus project.
 
 ---
 
-## Milestone 3 — Layer 2 PoC: Add Reasoning
+## Milestone 3 — Layer 2 PoC: Add Reasoning ✓
 
 **What is being proven**: adding a Chain of Thought layer to the Spec Advisor makes its selection reasoning visible and auditable. Quality should improve or stay equal — never regress.
 
-- [ ] Add `ChainOfThought` layer to `SpecAdvisorAgent`
+- [x] Add `ChainOfThought` layer to `SpecAdvisorAgent`
   - Steps: identify layer concerns → evaluate candidates → select + justify
-- [ ] `SpecAdvisorOutput` extended: add `reasoning_steps: list[str]` field
-- [ ] `tests/test_m2_spec_advisor.py` extended:
+- [x] `SpecAdvisorOutput` extended: add `reasoning_steps: list[str]` field
+- [x] `tests/test_m2_spec_advisor.py` extended:
   - `reasoning_steps` is non-empty and contains ≥3 steps
   - Each step references a specific concern or candidate language
   - Selection quality ≥ M2 baseline (same test inputs, compare justification depth)
@@ -122,6 +122,22 @@ Source: extracted and adapted from Senatus project.
 **Success criteria** (gate to M4):
 > Reasoning steps are visible, auditable, and reference specific layer concerns.
 > Selection quality is equal to or better than M2 baseline.
+
+**Verified**: 41/41 tests passing (22 M1 + 10 M2 + 8 M3 — clean M1 regression).
+
+Composition pattern: `COSTARPrompt → ChainOfThought`. Layers are assembled independently by `ComposedPrompt` — CoT is appended as a peer section, not injected into or wrapping COSTAR. The coupling is deliberate: COSTAR's `response_format` field instructs the model to populate `reasoning_steps` in the tool call; the CoT section provides the step-by-step scaffold. Two independent layers, one explicit handoff.
+
+*Simple brief (CRUD todo app)*: OpenAPI, api layer, confidence 0.95. Produced 5 reasoning steps. Steps explicitly evaluated: JSON Schema (dismissed — lacks endpoint semantics), OpenAPI (selected — covers full REST surface: endpoints + schemas + status codes in one artefact), TLA+/CML/Alloy/Event-B (dismissed — no concurrency, safety-critical, or relational invariant concerns present). The reasoning correctly identified the absence of concerns as signal, not just the presence.
+
+*Complex brief (multi-region e-commerce, eventual consistency, CQRS event sourcing)*: TLA+, system layer, confidence 0.93. Produced 8 reasoning steps. Per-concern evaluation:
+- Eventual consistency → TLA+ (temporal logic over asynchronous replica convergence) vs Event-B (refinement overhead unjustified without certification requirement)
+- CQRS event sourcing → TLA+ (command handlers + event log + read-model projections as interleaved state machines with ordering/idempotency constraints) vs CML (session protocols — covers choreography but lacks global invariant assertion)
+- Distributed inventory (no-oversell invariant, liveness) → TLA+ (global `inventory ≥ 0` across replicas + liveness proof) vs Alloy (structural snapshots only — no temporal operators for convergence liveness)
+- API surface → deferred to api/component layer; not dominant concern at system layer
+
+Quality delta vs M2 baseline: M2 justification was a single-paragraph conclusion. M3 justification is grounded in explicit per-concern reasoning visible in the output schema — the model showed its working, not just its answer. The complex brief confidence dropped slightly (M2 not recorded, M3: 0.93) reflecting genuine epistemic humility about whether liveness proofs could be descoped.
+
+Artifacts: `tests/artifacts/m3_simple.json`, `tests/artifacts/m3_complex.json`.
 
 ---
 
@@ -317,6 +333,8 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-06-12 | CoT steps scaffold reasoning; COSTAR `response_format` is the handoff | CoT and COSTAR are assembled as peer sections by `ComposedPrompt` — no wrapping or mutation. COSTAR's `response_format` field is the only coupling: it names `reasoning_steps` as a required tool field. This makes the handoff explicit and both layers independently testable. |
+| 2026-06-12 | CoT layer elicits per-concern candidate evaluation, not just a conclusion | M3 artifact showed the model evaluating TLA+ vs Event-B vs CML vs Alloy per-concern before selecting. M2 baseline produced a single-paragraph conclusion. The step scaffold ("for each concern, name candidates and evaluate fit") is what caused the richer evaluation — the model followed the scaffold literally. |
 | 2026-06-12 | Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs. Single tool per turn + `"any"` eliminates parse failures. See ADR-004 |
 | 2026-06-12 | Streamlit dashboard as primary UI; Chainlit retained as stub | Streamlit milestone runner proved sufficient for M0 verification. Chainlit kept as interactive shell for M7+ agent chain wiring. Playwright (`pytest-playwright` + `pytest-base-url`) added as UI test layer alongside unit tests |
 | 2026-06-11 | Named **Faber** | Latin: maker/artisan/architect. Guild-of-agents metaphor. "Homo faber" grounds the PE-first philosophy |

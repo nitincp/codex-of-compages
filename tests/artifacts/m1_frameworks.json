@@ -1,7 +1,7 @@
 {
   "milestone": "M1",
   "description": "Framework builder sample outputs \u2014 baseline for composition layer tests",
-  "timestamp": "2026-06-12T02:37:24.356239+00:00",
+  "timestamp": "2026-06-12T02:55:26.104596+00:00",
   "frameworks_tested": [
     "COSTARPrompt",
     "CRISPEPrompt",
