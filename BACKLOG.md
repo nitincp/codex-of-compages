@@ -37,21 +37,25 @@ See `docs/foundations/composition_framework.md` for the full framework architect
 
 ---
 
-## Milestone 0 — Infrastructure
+## Milestone 0 — Infrastructure ✓
 
-Goal: working devcontainer, Kuzu connected, Chainlit running, all deps installed.
-Source: extract and adapt from Senatus project (link TBD).
+Goal: working devcontainer, Kuzu connected, Streamlit dashboard running, all deps installed.
+Source: extracted and adapted from Senatus project.
 
-- [ ] Copy `.devcontainer/` from Senatus (`bootstrap-secrets.sh`, `devcontainer.json`)
-- [ ] Create `pyproject.toml` — same core deps as Senatus (`anthropic`, `langgraph`, `kuzu`, `chainlit`, `pydantic`, `python-dotenv`, `tenacity`, `ruff`, `pytest`)
-- [ ] Adapt `src/agents/base.py` from Senatus
-  - Add `build_prompt(layers: list[FrameworkLayer]) -> str` — assembles composed chain
-  - Keep `TokenUsage` / `SessionUsage` dataclasses intact
-- [ ] Adapt `src/graph/schema.py` — add `Specification`, `Requirement` NodeTypes; `GROUNDS`, `DERIVED_FROM`, `REFINES` EdgeTypes
-- [ ] Adapt `src/graph/store.py` — add new node/edge props; keep `write_node()`/`write_edge()` pattern
-- [ ] Stub `src/ui/app.py` — bare Chainlit shell
-- [ ] Create `.env`: `MODEL_PROVIDER=anthropic`, `MODEL_NAME=claude-sonnet-4-6`, `KUZU_DB_PATH=data/kuzu`
-- [ ] Verify: `chainlit run src/ui/app.py --port 8000` starts without errors
+- [x] Copy `.devcontainer/` from Senatus (`bootstrap-secrets.sh`, `devcontainer.json`)
+- [x] Create `pyproject.toml` — core deps (`anthropic`, `langgraph`, `kuzu`, `chainlit`, `streamlit`, `pydantic`, `python-dotenv`, `tenacity`, `ruff`, `pytest`, `playwright`, `pytest-playwright`, `pytest-base-url`)
+- [x] Adapt `src/agents/base.py` from Senatus
+  - `build_prompt(layers: list[FrameworkLayer]) -> str` — assembles composed chain
+  - `TokenUsage` / `SessionUsage` dataclasses intact
+- [x] Adapt `src/graph/schema.py` — `Specification`, `Requirement` NodeTypes; `GROUNDS`, `DERIVED_FROM`, `REFINES` EdgeTypes
+- [x] Adapt `src/graph/store.py` — node/edge props; `write_node()`/`write_edge()` pattern
+- [x] Stub `src/ui/app.py` — bare Chainlit shell (wired at M7)
+- [x] Create `src/ui/dashboard.py` — Streamlit milestone runner + artifact viewer (primary UI)
+- [x] Create `.env`: `MODEL_PROVIDER=anthropic`, `MODEL_NAME=claude-sonnet-4-6`, `KUZU_DB_PATH=data/kuzu`
+- [x] Verify: `streamlit run src/ui/dashboard.py --server.port 8000` starts without errors
+- [x] `tests/test_m0_dashboard.py` — Playwright smoke tests confirm dashboard renders correctly
+
+**Verified**: dashboard loads, milestone selector present, Run button present, agent cards idle. 4/4 playwright tests passing.
 
 ---
 
@@ -313,6 +317,7 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-06-12 | Streamlit dashboard as primary UI; Chainlit retained as stub | Streamlit milestone runner proved sufficient for M0 verification. Chainlit kept as interactive shell for M7+ agent chain wiring. Playwright (`pytest-playwright` + `pytest-base-url`) added as UI test layer alongside unit tests |
 | 2026-06-11 | Named **Faber** | Latin: maker/artisan/architect. Guild-of-agents metaphor. "Homo faber" grounds the PE-first philosophy |
 | 2026-06-11 | Composition over single-framework assignment | DSPy (2023) + ACL 2024 empirically prove composable chains outperform monolithic prompts. Each dimension is independently testable |
 | 2026-06-11 | Systematic PoC execution by layer | Each layer proven before next built on it. Always-working set at every milestone. Regression caught immediately |

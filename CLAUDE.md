@@ -37,8 +37,11 @@ M9  Kuzu graph    → M10 Multi-layer stack  → M11 Full council
 # Install dependencies
 pip install -e ".[dev]"
 
-# Run the app
-chainlit run src/ui/app.py --port 8000
+# Run the dashboard (primary UI — milestone runner + artifact viewer)
+streamlit run src/ui/dashboard.py --server.port 8000
+
+# Chainlit shell (interactive phases — not started by default)
+# chainlit run src/ui/app.py --port 8001
 
 # Inspect graph state (stop app first — Kuzu single-connection)
 python3 scripts/graph_stats.py
@@ -48,14 +51,31 @@ ruff check .
 ruff format .
 
 # Tests — run per milestone to confirm layer is proven
+pytest tests/test_m0_dashboard.py --base-url http://localhost:8000  # M0 gate (start dashboard first)
 pytest tests/test_frameworks.py        # M1 gate
 pytest tests/test_spec_advisor.py      # M2-M5 gates
 pytest tests/test_sme_chain.py         # M6 gate
 pytest tests/test_meta_chain.py        # M7 gate
 pytest tests/test_coordinator.py       # M8 gate
 pytest tests/test_graph_store.py       # M9 gate
-pytest                                 # full suite
+pytest                                 # full suite (excludes playwright — needs live server)
 ```
+
+## Testing methodology
+
+Each milestone has two test layers:
+
+1. **Unit / integration tests** (`pytest tests/test_<milestone>.py`) — fast, no server needed,
+   run in CI. These are the primary gate for M1+.
+
+2. **Playwright UI tests** (`pytest tests/test_m0_dashboard.py --base-url http://localhost:8000`)
+   — verify the Streamlit dashboard renders correctly with live browser automation.
+   Start the dashboard first, then run.  Used for M0 infra verification and any milestone
+   that adds new dashboard UI behaviour.
+
+The Streamlit dashboard (`src/ui/dashboard.py`) is the primary UI — it runs milestone test
+suites and displays agent cards + artifacts. Chainlit (`src/ui/app.py`) is a stub kept for
+the interactive agent chain wired in at M7.
 
 ## Environment
 
