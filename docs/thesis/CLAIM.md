@@ -1,7 +1,7 @@
 # Faber — Central Claim and Thesis Hypotheses
 
 **Author:** Nitin Pawar | **Date:** June 2026  
-**Status:** Pre-execution — hypotheses stated, evidence pending
+**Status:** Active — M00–M04 confirmed; M4.1 GNN PoC in progress (M4.1 M0–M1 confirmed)
 
 ---
 
@@ -45,22 +45,23 @@ These four constitute the theoretical spine.
 Each hypothesis is a testable claim. Passing the milestone's gate tests = hypothesis confirmed.
 Evidence files in `docs/evidence/` record the result.
 
-| Milestone | Hypothesis |
-|---|---|
-| M00 | A working devcontainer is established by extracting and adapting the Senatus infra layer with minimal changes. |
-| M01 | All framework builders produce correctly structured output independently and can be composed in sequence without interference. |
-| M02 | A Structure layer (COSTAR alone) is sufficient to ground the Spec Advisor's language selection task — producing coherent, differentiated selections for projects of different complexity. |
-| M03 | Adding a Chain of Thought layer makes selection reasoning visible and auditable, and improves or maintains selection quality relative to the M02 baseline. |
-| M04 | The Constitutional AI critique-revision loop demonstrably improves low-quality outputs while passing high-quality outputs through unchanged — functioning as a reliable output gate. |
-| M05 | With all four layers active, the Spec Advisor generates a CRISPE meta-prompt that is sufficient to drive a Spec Specialist to produce a non-empty formal spec mentioning domain terms from the input. |
-| M06 | Inter-agent context flows correctly: SME domain vocabulary appears in the Spec Advisor's selection context, and different personas applied to the same domain brief produce measurably different requirement text. |
-| M07 | The full meta-prompting chain (SME → Spec Advisor → Spec Specialist) produces a formal spec in the Advisor-selected language, grounded in the SME's domain terminology. |
-| M08 | The Coordinator detects low-confidence output and triggers the correct decision (retry/proceed/escalate). The ReAct reasoning is auditable. The loop terminates correctly. |
-| M09 | Spec artifacts persist in Kuzu with GROUNDS edges forming a queryable traceability chain from component spec back to requirement. |
-| M10 | The Spec Advisor is stateful across visits. Projects of different complexity produce spec stacks of different depths, each layer grounded in the layer above it. |
-| M11 | The Test Engineer produces Gherkin scenarios traceable to named spec nodes in the graph. Full traceability path (Requirement → system spec → domain spec → component spec → Gherkin) is queryable end-to-end. |
-| M12 | The SME Agent accumulates council responses as episodic memory across turns (Reflexion pattern), producing requirement sequences that visibly react to and build on prior council output. |
-| M13 | The system operates reliably with smaller models (Ollama). Confidence scoring is model-derived, not hardcoded. The spec stack rehydrates correctly from Kuzu on session restart. |
+| Milestone | Hypothesis | Status |
+|---|---|---|
+| M00 | A working devcontainer is established by extracting and adapting the Senatus infra layer with minimal changes. | ✓ confirmed |
+| M01 | All framework builders produce correctly structured output independently and can be composed in sequence without interference. | ✓ confirmed |
+| M02 | A Structure layer (COSTAR alone) is sufficient to ground the Spec Advisor's language selection task — producing coherent, differentiated selections for projects of different complexity. | ✓ confirmed |
+| M03 | Adding a Chain of Thought layer makes selection reasoning visible and auditable, and improves or maintains selection quality relative to the M02 baseline. | ✓ confirmed |
+| M04 | The Constitutional AI critique-revision loop demonstrably improves low-quality outputs while passing high-quality outputs through unchanged — functioning as a reliable output gate. | ✓ confirmed |
+| M4.1 | The GNN substrate is not architectural intent — it is a running, queryable graph. PE evolution is encoded as heterogeneous subgraphs with cross-schema comparison edges as ML signal. | → in progress (M4.1 M0–M1 confirmed) |
+| M05 | With all four layers active, the Spec Advisor generates a CRISPE meta-prompt that is sufficient to drive a Spec Specialist to produce a non-empty formal spec mentioning domain terms from the input. | ○ pending |
+| M06 | Inter-agent context flows correctly: SME domain vocabulary appears in the Spec Advisor's selection context, and different personas applied to the same domain brief produce measurably different requirement text. | ○ pending |
+| M07 | The full meta-prompting chain (SME → Spec Advisor → Spec Specialist) produces a formal spec in the Advisor-selected language, grounded in the SME's domain terminology. | ○ pending |
+| M08 | The Coordinator detects low-confidence output and triggers the correct decision (retry/proceed/escalate). The ReAct reasoning is auditable. The loop terminates correctly. | ○ pending |
+| M09 | Spec artifacts persist in Kuzu with GROUNDS edges forming a queryable traceability chain from component spec back to requirement. | ○ pending |
+| M10 | The Spec Advisor is stateful across visits. Projects of different complexity produce spec stacks of different depths, each layer grounded in the layer above it. | ○ pending |
+| M11 | The Test Engineer produces Gherkin scenarios traceable to named spec nodes in the graph. Full traceability path (Requirement → system spec → domain spec → component spec → Gherkin) is queryable end-to-end. | ○ pending |
+| M12 | The SME Agent accumulates council responses as episodic memory across turns (Reflexion pattern), producing requirement sequences that visibly react to and build on prior council output. | ○ pending |
+| M13 | The system operates reliably with smaller models (Ollama). Confidence scoring is model-derived, not hardcoded. The spec stack rehydrates correctly from Kuzu on session restart. | ○ pending |
 
 ---
 

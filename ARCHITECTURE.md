@@ -5,8 +5,14 @@
 
 **Prompt Engineering Project for Adaptive Formal Specification**  
 **Author:** Nitin Pawar | **Date:** June 2026  
-**Status:** Pre-implementation — architecture and PoC scoping  
+**Status:** Active — M0–M4 proven; M4.1 GNN PoC in progress (M4.1 M0–M1 proven)  
 **Companion documents:** `Greenfield_Development_Agent_Council-1.md`, `GraphRAG_GNN_Prompt_Engineering_Project_Final.md`
+
+> **Implementation grounding** — this document captures design intent written during project setup.
+> For current implementation state, milestone progress, and the GNN substrate pattern, the authoritative sources are:
+> - `CLAUDE.md` — implementation guidance, milestone folder layout, GNN runner pattern
+> - `BACKLOG.md` — milestone task lists with proven (`[x]`) and pending (`[ ]`) items
+> - `analysis_opportunities.md` — GNN analysis grounding, confirmed signals, open hypotheses
 
 ---
 
@@ -342,59 +348,53 @@ src/agents/personas/          — YAML persona files (Phase B)
 
 ```
 faber/
-├── ARCHITECTURE.md          — this document
-├── CLAUDE.md                — Claude Code instructions
-├── BACKLOG.md               — milestone breakdown
+├── ARCHITECTURE.md          — design intent (written pre-implementation; see grounding note above)
+├── CLAUDE.md                — implementation guidance (authoritative for Claude Code sessions)
+├── BACKLOG.md               — milestone task lists and gates
+├── analysis_opportunities.md — GNN analysis grounding; confirmed signals, open hypotheses
 ├── pyproject.toml           — dependencies
 ├── .env                     — non-sensitive config (gitignored)
 ├── .devcontainer/           — devcontainer + bootstrap-secrets
-├── data/kuzu/               — Kuzu graph DB (gitignored)
-├── scripts/
-│   └── graph_stats.py       — inspect graph state
+├── data/kuzu/               — Kuzu GNN graph DB with accumulated subgraphs (gitignored)
 ├── docs/
 │   ├── INDEX.md                        — thesis navigator (entry point)
 │   ├── thesis/CLAIM.md                 — central claim + per-milestone hypotheses
 │   ├── foundations/
 │   │   ├── composition_framework.md    — research grounding, agent chains, one-shot examples
 │   │   └── prompt_frameworks.md        — per-framework field reference
-│   ├── decisions/                      — ADR log (one file per architectural decision)
-│   ├── evidence/                       — PoC results (one file per milestone)
+│   ├── decisions/                      — ADR log (ADR-001–ADR-004 active; ADR-005 deferred to M8)
+│   ├── evidence/                       — PoC results (M00–M04 complete; M4.1 in progress)
 │   └── analysis/                       — alternatives considered, tensions, debates
 ├── src/
-│   ├── frameworks/
-│   │   ├── clear.py             — CLEAR session protocol builder
-│   │   ├── costar.py            — COSTAR structured output builder
-│   │   ├── crispe.py            — CRISPE technical generation builder
-│   │   ├── race.py              — RACE lightweight generation builder
-│   │   ├── persona.py           — PersonaLayer technique builder
-│   │   ├── chain_of_thought.py  — ChainOfThought reasoning builder
-│   │   ├── react.py             — ReActLoop reasoning builder
-│   │   ├── constitutional_ai.py — ConstitutionalAI verification builder
-│   │   ├── few_shot.py          — FewShot technique builder
-│   │   └── composed.py          — ComposedPrompt assembler
-│   ├── agents/
-│   │   ├── base.py              — BaseAgent
-│   │   ├── sme_agent.py         — SME Agent (CLEAR → COSTAR → PersonaLayer → CAI)
-│   │   ├── spec_advisor.py      — Spec Advisor (CLEAR → COSTAR → CoT → emits CRISPE)
-│   │   ├── spec_specialist.py   — dynamically configured (CRISPE injected → FewShot → CAI)
-│   │   ├── test_engineer.py     — Test Engineer (CRISPE → FewShot → CAI)
-│   │   ├── schemas.py           — Pydantic output schemas for all agents
-│   │   └── personas/            — YAML persona files (Phase B)
-│   ├── graph/
-│   │   ├── schema.py            — NodeType/EdgeType enums
-│   │   └── store.py             — GraphStore (Kuzu)
-│   ├── orchestration/
-│   │   ├── council.py           — LangGraph graph definition
-│   │   └── coordinator.py       — deliberative Coordinator (CLEAR → ReAct)
+│   ├── frameworks/          — all framework builder classes (proven in M1)
+│   │   ├── costar.py, crispe.py, clear.py, race.py    — Structure dimension
+│   │   ├── chain_of_thought.py, react.py               — Reasoning dimension
+│   │   ├── constitutional_ai.py                        — Verification dimension
+│   │   ├── few_shot.py, persona.py                     — Technique dimension
+│   │   └── composed.py                                 — ComposedPrompt assembler
+│   ├── agents/              — Spec Council agents (M2–M4 proven; M5+ pending)
+│   │   ├── base.py          — BaseAgent[T] generic
+│   │   ├── schemas.py       — Pydantic output schemas (M4 version; 7 fields)
+│   │   └── spec_advisor.py  — SpecAdvisorAgent, current = M4 (COSTAR + CoT + CAI)
+│   ├── milestones/          — GNN PoC track (M4.1 sub-milestones)
+│   │   └── m1/              — M4.1 M1: framework layer GNN ✓ proven
+│   │       ├── frameworks/  — frozen copies of framework builders tagged [M1-copy]
+│   │       ├── graph/
+│   │       │   ├── schema.py  — MilestoneRun, FrameworkLayer, CAPTURED_IN tables
+│   │       │   └── runner.py  — extract(), seed(conn, run_id), dump()
+│   │       ├── run.py         — CLI: python3 -m src.milestones.m1.run [run-id]
+│   │       └── tests/test_m1.py — gate tests (ephemeral DB, 11/11 passing)
+│   ├── graph/               — Spec Council graph store (used from M9)
+│   │   ├── schema.py        — NodeType/EdgeType enums (Specification, Requirement)
+│   │   └── store.py         — GraphStore (Kuzu)
+│   ├── orchestration/       — pipeline stubs (wired from M8)
 │   └── ui/
-│       └── app.py               — Chainlit app
-└── tests/
-    ├── test_frameworks.py       — unit tests for all prompt builders (M1 gate)
-    ├── test_spec_advisor.py     — selection loop tests (M2–M5 gates)
-    ├── test_sme_chain.py        — inter-agent context tests (M6 gate)
-    ├── test_meta_chain.py       — meta-prompting chain tests (M7 gate)
-    ├── test_coordinator.py      — Coordinator retry loop tests (M8 gate)
-    └── test_graph_store.py      — Kuzu integration tests (M9 gate)
+│       ├── app.py           — Chainlit shell (wired at M7)
+│       └── dashboard.py     — Streamlit milestone runner (M0 proven)
+└── tests/                   — Spec Council milestone gate tests
+    ├── test_m0_dashboard.py — M0 Playwright smoke tests ✓ 4/4
+    ├── test_m1_frameworks.py — M1 framework builder tests ✓ 22/22
+    └── test_m2_spec_advisor.py — M2/M3/M4 SpecAdvisor tests ✓ 27/27
 ```
 
 ---
