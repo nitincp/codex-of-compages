@@ -1,0 +1,27 @@
+{
+  "milestone": "M4",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt + ChainOfThought + ConstitutionalAI",
+  "timestamp": "2026-06-12T03:10:00.630653+00:00",
+  "input": {
+    "project_brief": "multi-region e-commerce platform with eventual consistency, distributed inventory, and CQRS event sourcing"
+  },
+  "output": {
+    "selected_lang": "TLA+",
+    "layer": "system",
+    "justification": "The project exhibits four concrete distributed-systems concerns that TLA+ is uniquely equipped to address: (1) multi-region replication requires modelling concurrent state transitions across independent nodes; (2) eventual consistency demands liveness proofs (\u25c7 convergence) that only temporal logic languages like TLA+ can express; (3) distributed inventory under concurrent writes requires safety invariants (e.g. \u25a1[inventory \u2265 0]) that must hold across all interleaved executions; and (4) CQRS event sourcing requires verifying correct command/event causality, idempotency under re-delivery, and ordering guarantees across regions. No other candidate \u2014 CML (lacks global state invariants), Event-B (not suited for highly concurrent distributed topologies), or Alloy (no liveness) \u2014 covers all four concerns. TLA+ targets the system layer because these properties are cross-cutting architectural invariants, not scoped to a single component or API surface.",
+    "confidence": 0.95,
+    "reasoning_steps": [
+      "Step 1 \u2014 Identify primary technical concerns: (a) multi-region distributed coordination with eventual consistency, (b) distributed inventory implying concurrent read/write races and replication lag, (c) CQRS event sourcing requiring correct ordering, idempotency, and command/event causality, (d) safety properties such as no negative inventory and no lost updates across regions.",
+      "Step 2a \u2014 Evaluating TLA+: Directly addresses distributed systems, concurrency, and consistency properties. TLA+ can model multi-region replication states, eventual consistency convergence, and CQRS command/event sequencing. Its temporal logic operators (safety \u25a1 and liveness \u25c7) are purpose-built for proving 'no lost inventory update' and 'all regions eventually converge' \u2014 both critical to this project.",
+      "Step 2b \u2014 Evaluating CML: Models communicating concurrent processes and message-passing protocols. Useful for session-level event bus interactions, but lacks the ability to express global consistency invariants across replicated state machines or temporal properties over distributed state transitions \u2014 insufficient for multi-region consistency proofs.",
+      "Step 2c \u2014 Evaluating Event-B: Supports refinement-based safety proofs and is strong for certified systems, but is optimised for sequential refinement chains rather than the highly concurrent, multi-region distributed topology here. CQRS event sourcing with concurrent command streams does not map cleanly to Event-B's refinement model without significant overhead.",
+      "Step 2d \u2014 Evaluating Alloy: Well-suited for relational invariants and bounded structural properties (e.g. access control, data shape constraints), but lacks temporal operators needed to reason about liveness \u2014 'eventual consistency' convergence cannot be expressed in Alloy's relational logic alone.",
+      "Step 3 \u2014 Weighing candidates: TLA+ uniquely covers all four identified concerns \u2014 concurrency, distributed state, eventual consistency (liveness), and safety invariants (e.g. inventory never goes negative). CML covers message-passing but not global state invariants. Event-B covers safety but not concurrent distributed topologies efficiently. Alloy covers invariants but not liveness. TLA+ is the dominant choice.",
+      "Step 4 \u2014 Layer determination: The concerns (multi-region consistency, CQRS event ordering, distributed inventory coordination) are architectural and cross-cutting \u2014 this is a system-layer specification targeting the overall distributed behaviour, not a single component, API surface, or domain model.",
+      "Step 5 \u2014 Confidence assessment: The brief provides four concrete technical signals (multi-region, eventual consistency, distributed inventory, CQRS event sourcing), all of which map precisely to TLA+'s strengths. Confidence is high at 0.95."
+    ],
+    "revised": false,
+    "revision_notes": ""
+  }
+}

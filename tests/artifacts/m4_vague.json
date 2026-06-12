@@ -1,0 +1,24 @@
+{
+  "milestone": "M4",
+  "agent": "SpecAdvisorAgent",
+  "composition": "COSTARPrompt + ChainOfThought + ConstitutionalAI",
+  "timestamp": "2026-06-12T03:10:15.373373+00:00",
+  "input": {
+    "project_brief": "an app"
+  },
+  "output": {
+    "selected_lang": "OpenAPI",
+    "layer": "api",
+    "justification": "The brief provides only the token 'an app', which constitutes fewer than two concrete technical signals. No concurrency model, data shape, safety constraints, consistency requirements, or API surface are described. Defaulting to OpenAPI at the API layer is the least-wrong choice because virtually every app exposes some form of request/response interface, and OpenAPI covers multi-endpoint REST contracts, request/response schemas, and data payload definitions in a single artefact. However, this selection is entirely assumption-driven and should be revised once at least the app's domain (e.g. distributed, data-heavy, safety-critical) and interaction model (e.g. REST, messaging, event-driven) are specified.",
+    "confidence": 0.3,
+    "reasoning_steps": [
+      "Step 1: Identify primary technical concerns. The brief states only 'an app' \u2014 no domain, no concurrency model, no API surface, no data shape, no safety constraints, and no system boundaries are described. This yields fewer than two concrete technical signals.",
+      "Step 2: Evaluate candidate languages against the available (minimal) signals. JSON Schema covers data shapes and simple payloads; OpenAPI covers REST API contracts. Both are broadly applicable to generic app contexts, but neither can be justified with specificity given the vague brief.",
+      "Step 3: Because the brief is underspecified, confidence must be lowered below 0.75 and revised must be set to true per Constitutional AI principle 3. The most defensible default for a generic 'app' with no further context is the API layer, and OpenAPI is the most broadly applicable language at that layer \u2014 covering request/response contracts, multi-endpoint services, and data payload schemas simultaneously.",
+      "Step 4: Select OpenAPI targeting the 'api' layer as the least-wrong default. It covers the widest surface area for an unknown app type with minimal overhead.",
+      "Step 5: Confidence is set to 0.30, reflecting severe underspecification and the large number of assumptions required."
+    ],
+    "revised": true,
+    "revision_notes": "Constitutional AI principle 3 was triggered: the brief supplied fewer than two concrete technical signals ('an app' only). Confidence was lowered to 0.30 (below the 0.75 threshold), revised was set to true, and this revision_notes field was added to explain the assumptions required: (1) the app exposes a REST-style interface, (2) the most immediately useful spec artefact is an API contract rather than a system-level or domain model. Both assumptions may be wrong and must be validated against a more detailed brief."
+  }
+}

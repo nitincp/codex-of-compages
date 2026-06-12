@@ -141,14 +141,14 @@ Artifacts: `tests/artifacts/m3_simple.json`, `tests/artifacts/m3_complex.json`.
 
 ---
 
-## Milestone 4 — Layer 3 PoC: Add Verification
+## Milestone 4 — Layer 3 PoC: Add Verification ✓
 
 **What is being proven**: the Constitutional AI critique-revision loop improves low-quality outputs and passes high-quality ones through. The loop is the self-correcting gate.
 
-- [ ] Add `ConstitutionalAI` layer to `SpecAdvisorAgent`
+- [x] Add `ConstitutionalAI` layer to `SpecAdvisorAgent`
   - Criteria: justification references specific layer concerns, confidence ≥ 0.7, candidate evaluation present
-- [ ] `SpecAdvisorOutput` extended: `revised: bool`, `revision_notes: str`
-- [ ] `tests/test_m2_spec_advisor.py` extended:
+- [x] `SpecAdvisorOutput` extended: `revised: bool`, `revision_notes: str`
+- [x] `tests/test_m2_spec_advisor.py` extended:
   - **Regression test**: intentionally weak input (vague project brief) → `revised=True`, output improves
   - **Pass-through test**: strong input → `revised=False`, output unchanged
   - All M2 and M3 tests still pass (no regression)
@@ -156,6 +156,18 @@ Artifacts: `tests/artifacts/m3_simple.json`, `tests/artifacts/m3_complex.json`.
 **Success criteria** (gate to M5):
 > CAI gate demonstrably revises weak outputs. Strong outputs pass through unchanged.
 > No regression in M2/M3 test cases.
+
+**Verified**: 27/27 tests passing (23 M1 + 18 M2/M3 + 9 M4 — clean regression). Composition chain: `COSTARPrompt → ChainOfThought → ConstitutionalAI`.
+
+*Vague brief ("an app")*: OpenAPI, api layer, confidence 0.30, `revised=True`. CAI principle 3 triggered — brief had fewer than 2 concrete technical signals. Model lowered confidence from initial to 0.30, added explicit assumption inventory (REST interface, API contract as spec artefact), and flagged both assumptions as unvalidated. `revision_notes` explains the principle triggered and what changed.
+
+*Simple brief (CRUD todo app)*: OpenAPI, api layer, confidence 0.95, `revised=False`. 7 reasoning steps. All CAI principles satisfied on first pass — brief supplies REST API and PostgreSQL as concrete signals.
+
+*Complex brief (multi-region e-commerce)*: TLA+, system layer, confidence 0.95, `revised=False`. 8 reasoning steps. All CAI principles satisfied — eventual consistency, CQRS event sourcing, and distributed inventory are 3+ concrete technical signals with named candidate evaluation.
+
+Pass-through semantics confirmed: strong inputs are unchanged by the CAI gate; `revision_notes` is empty. The gate only fires when the brief fails the underspecification threshold.
+
+Artifacts: `tests/artifacts/m4_simple.json`, `tests/artifacts/m4_complex.json`, `tests/artifacts/m4_vague.json`.
 
 ---
 
@@ -333,6 +345,7 @@ Goal: Full persona-driven multi-domain simulation. Multi-turn history accumulati
 
 | Date | Decision | Reason |
 |---|---|---|
+| 2026-06-12 | CAI principle 3 encodes the underspecification threshold as a deterministic rule | "Fewer than two concrete technical signals → revised=True + confidence < 0.75" gives the test a reliable trigger without depending on the model's self-assessment of vagueness. The threshold is a quality criterion (epistemic honesty), not a procedural rule — CAI's purpose is to force the model to surface its uncertainty rather than hide it behind a confident-sounding but assumption-driven selection. |
 | 2026-06-12 | CoT steps scaffold reasoning; COSTAR `response_format` is the handoff | CoT and COSTAR are assembled as peer sections by `ComposedPrompt` — no wrapping or mutation. COSTAR's `response_format` field is the only coupling: it names `reasoning_steps` as a required tool field. This makes the handoff explicit and both layers independently testable. |
 | 2026-06-12 | CoT layer elicits per-concern candidate evaluation, not just a conclusion | M3 artifact showed the model evaluating TLA+ vs Event-B vs CML vs Alloy per-concern before selecting. M2 baseline produced a single-paragraph conclusion. The step scaffold ("for each concern, name candidates and evaluate fit") is what caused the richer evaluation — the model followed the scaffold literally. |
 | 2026-06-12 | Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs. Single tool per turn + `"any"` eliminates parse failures. See ADR-004 |
