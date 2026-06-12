@@ -140,11 +140,15 @@ src/milestones/m{N}/migration/
 -- TableName: what changed and why
 COPY (
   MATCH (n:TableName)
-  WITH n.existing_col AS existing_col,   -- source schema (existed before)
-       0 AS new_col                       -- target addition + intent comment
-  RETURN *
+  RETURN n.existing_col AS existing_col,  -- source schema (existed before)
+         0 AS new_col                     -- target addition + intent comment
 ) TO '{output_dir}/TableName.parquet'
 ```
+
+Rel tables use `src_id`/`dst_id` as the FROM/TO column convention (loaded with
+`COPY REL FROM 'file.parquet' (from='src_id', to='dst_id')`). New tables introduced
+in a migration (no rows in source) are excluded from `transform.cypher` entirely —
+the verify step handles missing source tables via try/except (count = 0).
 
 **`schema.cypher`** is the snapshot. To see what changed between any two milestones:
 

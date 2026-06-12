@@ -256,7 +256,9 @@ class TestM4Verification:
             f"got revised={complex_output.revised}, notes='{complex_output.revision_notes}'"
         )
 
-    def test_revised_field_present_on_all_outputs(self, simple_output, complex_output, vague_output):
+    def test_revised_field_present_on_all_outputs(
+        self, simple_output, complex_output, vague_output
+    ):
         """All outputs carry the revised field regardless of whether revision occurred."""
         for out in (simple_output, complex_output, vague_output):
             assert isinstance(out.revised, bool)

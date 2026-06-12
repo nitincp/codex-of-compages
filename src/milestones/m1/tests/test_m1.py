@@ -183,7 +183,9 @@ def test_ml_file_expansion(m1_graph, capsys):
     )
     with capsys.disabled():
         print("\n\n=== ML pass: output chars / source bytes ===")
-        print(f"  {'Framework':<22} {'Dimension':<14} {'out_chars':>9} {'src_bytes':>9} {'ratio':>6}")
+        print(
+            f"  {'Framework':<22} {'Dimension':<14} {'out_chars':>9} {'src_bytes':>9} {'ratio':>6}"
+        )
         print("  " + "-" * 65)
         for name, dim, out_chars, src_bytes in rows:
             ratio = out_chars / src_bytes if src_bytes else 0

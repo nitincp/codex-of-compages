@@ -25,12 +25,12 @@ from __future__ import annotations
 import hashlib
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import kuzu
 
 from ..frameworks.chain_of_thought import ChainOfThought
 from ..frameworks.clear import CLEARSession
-from ..frameworks.composed import ComposedPrompt
 from ..frameworks.constitutional_ai import ConstitutionalAI
 from ..frameworks.costar import COSTARPrompt
 from ..frameworks.crispe import CRISPEPrompt
@@ -52,14 +52,16 @@ _M1_DIR = Path(__file__).parent.parent  # src/milestones/m1/
 # reference when writing COMPOSES and USES_CHAIN edges.
 # ---------------------------------------------------------------------------
 
-_INSTANCES: list[tuple[object, str]] = [
+_INSTANCES: list[tuple[Any, str]] = [
     (
         COSTARPrompt(
             context=(
                 "Spec Advisor council session. Project brief: REST API service for a todo app "
                 "with a PostgreSQL backend."
             ),
-            objective="Select the optimal formal specification language for the given project layer.",
+            objective=(
+                "Select the optimal formal specification language for the given project layer."
+            ),
             style="Formal and analytical",
             tone="Rigorous and precise",
             audience="Spec Specialist agent — consumes the selection to generate a formal spec",
@@ -278,8 +280,10 @@ def seed(conn: kuzu.Connection, run_id: str | None = None, model: str = "local")
 
     # Idempotent: skip if this run already exists
     existing_runs = {
-        row[0]
-        for row in conn.execute("MATCH (r:MilestoneRun) RETURN r.run_id").get_all()
+        cast(list, row)[0]
+        for row in cast(list, cast(kuzu.QueryResult, conn.execute(
+            "MATCH (r:MilestoneRun) RETURN r.run_id"
+        )).get_all())
     }
     if run_id in existing_runs:
         return run_id
@@ -314,6 +318,37 @@ def seed(conn: kuzu.Connection, run_id: str | None = None, model: str = "local")
     return run_id
 
 
+def reseed_frameworks(conn: kuzu.Connection, run_ids: list[str]) -> None:
+    """
+    Create FrameworkLayer nodes + CAPTURED_IN edges for given run_ids.
+
+    Called by the ETL migrate runner when FrameworkLayer is in reseed_tables.
+    Unlike seed(), does not create MilestoneRun nodes — assumes they already exist
+    (loaded from Parquet). Safe to call on a DB where MilestoneRun rows are present
+    but FrameworkLayer rows are absent.
+    """
+    ensure_schema(conn)
+    records = extract()
+    for run_id in run_ids:
+        for rec in records:
+            node_id = f"{run_id}:{rec['name']}"
+            conn.execute(
+                "CREATE (:FrameworkLayer {"
+                "id: $id, name: $name, run_id: $run_id, "
+                "dimension: $dimension, build_output: $build_output, "
+                "file_path: $file_path, file_hash: $file_hash, "
+                "file_size_bytes: $file_size_bytes, build_time_ms: $build_time_ms, "
+                "output_char_count: $output_char_count, output_token_est: $output_token_est"
+                "})",
+                parameters={"id": node_id, "run_id": run_id, **rec},
+            )
+            conn.execute(
+                "MATCH (f:FrameworkLayer {id: $fid}), (r:MilestoneRun {run_id: $rid}) "
+                "CREATE (f)-[:CAPTURED_IN]->(r)",
+                parameters={"fid": node_id, "rid": run_id},
+            )
+
+
 def dump(conn: kuzu.Connection, output_path: "Path | str", run_id: str | None = None) -> None:
     """
     Export one run's FrameworkLayer data as a JSON artifact.
@@ -321,24 +356,26 @@ def dump(conn: kuzu.Connection, output_path: "Path | str", run_id: str | None = 
     If run_id is None, exports the most recent run (by timestamp).
     The artifact is what Claude reads for analysis — no live Kuzu connection needed.
     """
-    import json
     import datetime
+    import json
 
     if run_id is None:
-        rows = conn.execute(
+        _res = cast(kuzu.QueryResult, conn.execute(
             "MATCH (r:MilestoneRun) RETURN r.run_id ORDER BY r.timestamp DESC LIMIT 1"
-        ).get_all()
-        if not rows:
+        ))
+        _r = cast(list, _res.get_all())
+        if not _r:
             return
-        run_id = rows[0][0]
+        run_id = cast(list, _r[0])[0]
 
-    rows = conn.execute(
+    _res2 = cast(kuzu.QueryResult, conn.execute(
         "MATCH (r:MilestoneRun {run_id: $rid})<-[:CAPTURED_IN]-(f:FrameworkLayer) "
         "RETURN f.name, f.dimension, f.build_output, f.file_path, f.file_hash, "
         "f.file_size_bytes, f.build_time_ms, f.output_char_count, f.output_token_est "
         "ORDER BY f.dimension, f.name",
         parameters={"rid": run_id},
-    ).get_all()
+    ))
+    rows = cast(list, _res2.get_all())
 
     nodes = [
         {

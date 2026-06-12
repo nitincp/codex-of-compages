@@ -19,6 +19,7 @@ import argparse
 import os
 import time
 from pathlib import Path
+from typing import cast
 
 import kuzu
 from dotenv import load_dotenv
@@ -68,8 +69,10 @@ def main() -> None:
 
         # Idempotent: skip if this run already exists
         existing = {
-            row[0]
-            for row in conn.execute("MATCH (r:MilestoneRun) RETURN r.run_id").get_all()
+            cast(list, row)[0]
+            for row in cast(list, cast(kuzu.QueryResult, conn.execute(
+                "MATCH (r:MilestoneRun) RETURN r.run_id"
+            )).get_all())
         }
         if run_id in existing:
             print(f"run_id {run_id} already exists — choose a different id or omit for auto-gen")
@@ -77,7 +80,8 @@ def main() -> None:
 
         # Create MilestoneRun anchor
         conn.execute(
-            "CREATE (:MilestoneRun {run_id: $run_id, milestone: 'm2', model: $model, timestamp: $ts})",
+            "CREATE (:MilestoneRun {run_id: $run_id, milestone: 'm2', "
+            "model: $model, timestamp: $ts})",
             parameters={
                 "run_id": run_id,
                 "model": args.model,
@@ -117,10 +121,13 @@ def main() -> None:
                 f"{output.confidence:>5.2f} {latency_ms:>7.0f}"
             )
 
-        all_runs = conn.execute(
+        _res = conn.execute(
             "MATCH (r:MilestoneRun {milestone: 'm2'}) RETURN r.run_id, r.timestamp "
             "ORDER BY r.timestamp"
-        ).get_all()
+        )
+        # kuzu.Connection.execute may return a QueryResult with get_all(), or
+        # a plain list depending on bindings. Handle both.
+        all_runs = _res.get_all() if hasattr(_res, "get_all") else list(_res)
         print(f"\ntotal m2 runs in DB: {len(all_runs)}")
         for rid, ts in all_runs:
             marker = " ← this run" if rid == run_id else ""

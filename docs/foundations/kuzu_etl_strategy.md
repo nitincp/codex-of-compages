@@ -128,30 +128,35 @@ COPY (
          n.model AS model, n.timestamp AS timestamp
 ) TO '{output_dir}/MilestoneRun.parquet'
 
--- SpecRun: + reasoning_step_count INT64, + evaluation_depth DOUBLE
---   reasoning_step_count: CoT steps were not counted in M2 (COSTAR structure only,
---     no explicit reasoning enumeration). Pre-M3 runs default to 0. Not comparable
---     to M3 runs on this dimension — GNN queries must filter by milestone.
---   evaluation_depth: Candidate evaluation was implicit in M2 output, not measured.
---     0.0 marks absence of measurement, not a zero-depth evaluation.
+-- SpecRun: + reasoning_step_count INT64, + evaluation_depth STRING
+--   reasoning_step_count=0: CoT steps were not counted in M2 (COSTAR only — no CoT).
+--     Pre-M3 rows default to 0. Not comparable to M3 rows — filter by milestone in GNN queries.
+--   evaluation_depth='unknown': CoT not present in M2; string sentinel marks absence.
 COPY (
   MATCH (n:SpecRun)
-  WITH n.id AS id, n.run_id AS run_id, n.milestone AS milestone,
-       n.brief_label AS brief_label, n.selected_lang AS selected_lang,
-       n.layer AS layer, n.confidence AS confidence,
-       n.justification_char_count AS justification_char_count,
-       n.latency_ms AS latency_ms, n.model AS model, n.timestamp AS timestamp,
-       0 AS reasoning_step_count,
-       0.0 AS evaluation_depth
-  RETURN *
+  RETURN n.id AS id, n.run_id AS run_id, n.milestone AS milestone,
+         n.brief_label AS brief_label, n.selected_lang AS selected_lang,
+         n.layer AS layer, n.confidence AS confidence,
+         n.justification_char_count AS justification_char_count,
+         n.latency_ms AS latency_ms, n.model AS model, n.timestamp AS timestamp,
+         0 AS reasoning_step_count,
+         'unknown' AS evaluation_depth
 ) TO '{output_dir}/SpecRun.parquet'
 
--- REASONING_ADDS: new relationship in m3
+-- SPEC_CAPTURED_IN: identity rel — src_id/dst_id are the PKs of the FROM/TO nodes
 COPY (
-  MATCH (s:SpecRun)-[:SPEC_CAPTURED_IN]->(m:MilestoneRun)
-  RETURN s.id AS from_id, m.run_id AS to_id
-) TO '{output_dir}/REASONING_ADDS.parquet'
+  MATCH (s:SpecRun)-[:SPEC_CAPTURED_IN]->(r:MilestoneRun)
+  RETURN s.id AS src_id, r.run_id AS dst_id
+) TO '{output_dir}/SPEC_CAPTURED_IN.parquet'
+
+-- REASONING_ADDS: new rel in m3 — excluded (no M2 data to carry forward)
+-- New tables introduced in a migration have no COPY block; verify step counts source as 0.
 ```
+
+**Column conventions**:
+- Node tables: each column returned with its exact schema name (`n.col AS col`)
+- Rel tables: `src_id` = PK of FROM node, `dst_id` = PK of TO node (loaded with `(from='src_id', to='dst_id')`)
+- New-in-migration tables: no block in `transform.cypher`; verify handles missing source gracefully
 
 ### `meta.json` — Runner Metadata
 
@@ -182,8 +187,10 @@ src/etl/
    (substituting `{output_dir}` with temp path)
 4. Create new empty DB from `schema.cypher`
 5. `COPY TableName FROM parquet` for each output file (nodes first, rels second)
-6. Re-seed `reseed_tables` via their milestone runner's `seed()` function
-7. Verify: row counts match source, FK spot-checks, gate tests
+   - Rel tables: `COPY REL FROM 'file.parquet' (from='src_id', to='dst_id')`
+6. Re-seed `reseed_tables` via `reseed_frameworks()` in `m1/graph/runner.py`
+7. Verify row counts: for each table in target schema, count src vs new.
+   Tables new in this migration don't exist in source — caught with try/except, counted as 0.
 8. Rotate: `mv data/kuzu → data/kuzu_bak_YYYYMMDD`, `mv new → data/kuzu`
 
 `--dry-run` stops before creating the new DB — lets you inspect transformed Parquet files.
