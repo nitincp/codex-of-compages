@@ -29,8 +29,8 @@ python3 -m src.milestones.m{N}.run my-run-id  # explicit run_id
 python3 -m src.etl.migrate --to m{N} --dry-run
 python3 -m src.etl.migrate --to m{N}
 
-# Lint + type check
-ruff check . && ruff format . && pyright src/
+# Lint
+ruff check . && ruff format .
 ```
 
 ## Testing — two-tier separation (strict)
@@ -61,13 +61,13 @@ Framework tagging: `# [M1-origin | src/frameworks/costar.py]` for the original; 
 
 ## Kuzu schema evolution
 
-Full strategy and transform.cypher patterns: `docs/foundations/kuzu_etl_strategy.md`.
+**Authoritative source:** `docs/foundations/kuzu_etl_strategy.md` — read it first. Trigger conditions, transform.cypher patterns, pass structure, AnalysisNote handling all live there.
 
-- **Adding new tables** → `CREATE NODE TABLE IF NOT EXISTS`. No ETL needed.
-- **Changing existing tables** → blue-green rotation via `src/etl/migrate.py`. Kuzu has no `ALTER TABLE`.
-- Migrations live in `src/milestones/m{N}/migration/`. Single-pass = flat layout. Multi-pass = `pass_01/`, `pass_02/` dirs.
+- ETL = blue-green DB rotation via `src/etl/migrate.py`. Kuzu has no `ALTER TABLE`.
+- `schema.cypher` is always a **complete snapshot** of every table in the DB at that milestone — not just the changed ones.
+- Migration files always follow the single-pass base structure (`meta.json` + `schema.cypher` + `transform.cypher` at root). Multi-pass (`pass_01/`, `pass_02/`) is the extension, never a reason to skip the structure.
 - Never modify existing passes — always add a new one.
-- `reseed_tables` in `meta.json` = deterministic tables re-seeded from source, not Parquet. No `COPY` block for these.
+- `reseed_tables` in `meta.json` = deterministic tables re-seeded from source, not Parquet. No `COPY` block for these in `transform.cypher`.
 - After rotation, run gate tests against new DB path before discarding the backup.
 
 ## Claude's role
@@ -81,7 +81,11 @@ Claude is **both** code writer and analytical orchestrator.
 2. Writes and executes ad-hoc Python scripts to query `data/kuzu`
 3. Decides what signals are worth persisting — no predetermined schema
 4. Creates `AnalysisNote` nodes + `ANALYZED` edges on the fly via `CREATE NODE TABLE IF NOT EXISTS`
-5. Updates `analysis_opportunities.md` with confirmed findings and forward hypotheses
+5. Updates `analysis_opportunities.md`: adds newly discovered OPPs; updates hypothesis status (confirmed/refuted/open)
+
+Findings persist as `AnalysisNote` nodes in Kuzu — not in markdown.
+`analysis_opportunities.md` is a library of what to ask and when, not a results log or task tracker.
+OPPs are repeatable — do not mark them "done"; they can always be re-run as more subgraphs accumulate.
 
 **Read `analysis_opportunities.md` at the start of any analytical session.**  
 Analysis is **NOT** done in code — `runner.py` captures; Claude analyzes.

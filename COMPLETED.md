@@ -428,3 +428,54 @@ complex often implicit (TLA+ dominance obvious, dismissal unstated). Lives on `R
 Gate to M4.1 M4 is open.
 
 → Evidence: [M04_1_graphrag_gnn_poc.md](docs/evidence/M04_1_graphrag_gnn_poc.md)
+
+---
+
+<a id="m41-m4"></a>
+### M4.1 M4 — M4 Run and Analysis + First Topology Query ✓
+
+**What is being proven**: M4 `RevisionEvent` nodes and `VERIFICATION_ADDS` cross-schema edges are
+seeded. The first topology-based GNN retrieval is proven — given a run profile
+`{revised=False, step_count ≥ 5, evaluation_depth=per_concern}`, the graph returns the structurally
+most similar prior run by traversing cross-schema edges, not by keyword. Vague brief topological
+asymmetry confirmed: no incoming `VERIFICATION_ADDS` edge (no M3 counterpart), excluded by structure.
+
+**Note**: M4 composition (COSTAR + CoT + CAI) restored from git `a966ce9` →
+`src/milestones/m4/agent.py` `[M4-origin | src/agents/spec_advisor.py @ a966ce9]`.
+Framework builders tagged `[M4-copy]`. Milestone self-contained — no imports from `src/agents/`.
+
+- [x] `src/milestones/m4/migration/` — single-pass (m3 → m4): `SpecRun` gains `revised`, `revision_notes`; adds `RevisionEvent`, `VERIFICATION_ADDS`; backfills M3 rows with `false/''`. 12 tables verified.
+- [x] Restore M4 agent + schema from git `a966ce9` into `src/milestones/m4/`
+- [x] `src/milestones/m4/graph/schema.py` — `RevisionEvent` node; `VERIFICATION_ADDS` rel (5 edge props: `revised`, `confidence_delta`, `cai_principle_triggered`, `signal_count_below_threshold`, `assumption_inventory_added`)
+- [x] `src/milestones/m4/graph/runner.py` — seeds `RevisionEvent` + optional `VERIFICATION_ADDS` edge from matched M3 `SpecRun` (simple/complex only — vague has no M3 counterpart)
+- [x] `src/milestones/m4/run.py` — calls live M4 Spec Advisor for three briefs: simple, complex, vague; `--m3-run-id` auto-detects most recent M3 run
+- [x] `src/milestones/m4/tests/test_m4_gnn.py` — 32 gate tests (ephemeral DB):
+  - `RevisionEvent`: `revised=True` for vague, `revised=False` for simple/complex
+  - `VERIFICATION_ADDS` edge with correct `confidence_delta` and `cai_principle_triggered`
+  - Vague `SpecRun` has no incoming `REASONING_ADDS` — topological asymmetry preserved
+  - **First GNN topology query**: `{revised=False, step_count≥5, depth=per_concern}` traverses `REASONING_ADDS|VERIFICATION_ADDS`; asserts vague NOT in results, complex IN results
+- [x] Claude-in-loop: 3 CLI runs; OPP-2 (CAI revision rate), OPP-5 (token stack) analysed; H4 confirmed; 3 `AnalysisNote` nodes written
+- [x] `analysis_opportunities.md` updated: OPP-2, OPP-5 closed; H4 confirmed
+
+**Confirmed signals (3-run analysis)**:
+
+| Brief | Lang | Revised | Conf mean | Conf range | Steps mean |
+|---|---|---|---|---|---|
+| simple | OpenAPI | False (0/3) | 0.963 | 0.020 | 7.0 |
+| complex | TLA+ | False (0/3) | 0.963 | 0.020 | 8.0 |
+| vague | OpenAPI | **True (3/3)** | **0.400** | 0.150 | 5.0 |
+
+| Hypothesis | Result | Key evidence |
+|---|---|---|
+| H4 CAI revision rate < 30% when conf ≥ 0.7 | **confirmed** | simple+complex 0% revised (conf 0.95–0.97); vague 100% revised (conf 0.35–0.50) — binary split |
+
+**VERIFICATION_ADDS deltas** (M3 → M4, clear briefs only): simple avg −0.017, complex avg −0.007. CAI does not inflate confidence for well-specified briefs.
+
+**Token stack (OPP-5)**: COSTAR=115, CoT=175, CAI=162. M4 total = 452 tokens ≈ 24% of total API input per call (~1,892 tokens). Remaining 76% is tool schema + brief.
+
+**Topological isolation**: vague `SpecRun` has no `VERIFICATION_ADDS` incoming edge — excluded from topology query by structure, not filter.
+
+**Verified** (2026-06-13): 32/32 M4 gate tests passing. 74/74 total tests clean (M1+M2+M3+ETL+M4).
+3 CLI runs seeded. 3 `AnalysisNote` nodes written. Migration: 12 tables verified, blue-green rotation clean.
+
+→ Evidence: [M04_1_graphrag_gnn_poc.md](docs/evidence/M04_1_graphrag_gnn_poc.md)

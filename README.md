@@ -18,12 +18,11 @@ across runs and is queryable live — it is not a storage layer bolted on later,
 | M2 Spec Advisor, structure only (Layer 1) | ✓ proven — 10/10 tests |
 | M3 Add Reasoning / CoT (Layer 2) | ✓ proven — 19/19 tests |
 | M4 Add Verification / CAI (Layer 3) | ✓ proven — 27/27 tests |
-| M4.1 GNN PoC sub-milestones | M0–M3 ✓; **M4 is next** |
+| M4.1 GNN PoC sub-milestones | M0–M4 ✓ — 74/74 tests; **M5 is next** |
 | M5–M13 Spec Council | not started |
 | M14–M18 Build Council | not started |
 
-**Next task:** M4.1 M4 — `RevisionEvent` nodes, `VERIFICATION_ADDS` cross-schema edges, and the
-**first topology-based GNN retrieval** (find the most similar prior run by traversing the graph, not by keyword).
+**Next task:** M5 — Full Spec Advisor with meta-prompt output (CRISPE prompt for Spec Specialist).
 
 ---
 

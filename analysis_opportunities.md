@@ -145,13 +145,14 @@ translates to richer agent output, not just longer prompts.
 **Available when:** M4 seeded  
 **Query:**
 ```cypher
-MATCH (r:SpecRun {milestone: 'm4'})
-RETURN r.revised, count(r), avg(r.confidence)
-ORDER BY r.revised
+MATCH (s:SpecRun {milestone: 'm4'})
+RETURN s.revised, count(s), avg(s.confidence)
+ORDER BY s.revised
 ```
 **What it proves:** What fraction of M4 outputs trigger the CAI revision loop?
 If revision rate is high with low pre-revision confidence, CAI is doing real work.
-If revision rate is near zero, CAI may be too permissive (principles too weak).
+If revision rate is near zero, CAI may be too permissive (principles too weak).  
+**First run (2026-06-13, 3 runs):** Binary split — vague 100% revised (avg conf 0.40), clear briefs 0% (avg conf 0.963). AnalysisNote: `m4-opp2-revision-binary-split`.
 
 ---
 
@@ -190,18 +191,12 @@ across domains, PersonaLayer may not be discriminating enough.
 **Available when:** M2, M3, M4 all seeded  
 **Query:**
 ```cypher
--- M1 framework token budget per milestone composition
--- Read from FrameworkLayer nodes, sum per milestone's framework set
 MATCH (f:FrameworkLayer)
-WHERE f.name IN ['COSTARPrompt', 'ConstitutionalAI']
-RETURN f.name, f.output_token_est  -- M2 budget
-
-MATCH (f:FrameworkLayer)
-WHERE f.name IN ['COSTARPrompt', 'ChainOfThought', 'ConstitutionalAI']
-RETURN f.name, f.output_token_est  -- M3 budget
+RETURN f.name, f.dimension, avg(f.output_token_est)
+ORDER BY avg(f.output_token_est) DESC
 ```
-**What it proves:** The cumulative framework token cost per milestone. Compare against
-actual `input_token_count` from SpecRun nodes — the delta is the brief + context overhead.
+**What it proves:** Cumulative framework token cost per milestone composition. Delta between framework total and actual API input = tool schema + brief overhead.  
+**First run (2026-06-13):** M2=115, M3=290 (+175 CoT), M4=452 (+162 CAI). Frameworks ≈24% of total input; remaining 76% is tool schema + brief. AnalysisNote: `m4-opp5-token-composition-stack`.
 
 ---
 
@@ -262,7 +257,7 @@ The result is the FewShot candidate to inject into the next Spec Advisor call.
 | H1 | ChainOfThought token density (175) correlates with reasoning depth in M3 output | M3 | **confirmed** — 6/6 per_concern, ≥5 named-candidate steps |
 | H2 | PersonaLayer low expansion (0.265) → low impact on SME output variance | M5 | open |
 | H3 | COSTAR vs CLEARSession in Structure slot produces measurable spec quality delta | M2-variant | open |
-| H4 | ConstitutionalAI revision rate < 30% when confidence threshold ≥ 0.7 | M4 | open |
+| H4 | ConstitutionalAI revision rate < 30% when confidence threshold ≥ 0.7 | M4 | **confirmed** — 0% for conf≥0.7 briefs; 100% for vague (conf<0.5); binary split |
 | H5 | M2→M3 token delta is dominated by ChainOfThought contribution (≈175 tokens) | M3 | **confirmed** — +175 exactly CoT; COSTAR unchanged |
 | H6 | M3 CoT will narrow complex confidence range (0.040 → <0.020) via deliberate reasoning | M3 | **confirmed (exceeded)** — range = 0.000 |
 | H7 | Complexity-latency inversion (complex faster than simple) persists at M3 | M3 | **refuted** — reversed; complex 2.6s slower due to more output tokens |
