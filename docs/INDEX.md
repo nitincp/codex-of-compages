@@ -28,6 +28,7 @@ For new session orientation, start with `README.md` in the repo root.
 | [docs/foundations/prompt_frameworks.md](foundations/prompt_frameworks.md) | Per-framework field reference (COSTAR, CRISPE, CLEAR, RACE, PersonaLayer, etc.) |
 | [docs/foundations/kuzu_etl_strategy.md](foundations/kuzu_etl_strategy.md) | Kuzu schema migration strategy — blue-green rotation, transform.cypher patterns, multi-pass layout |
 | [docs/foundations/dev-guide.md](foundations/dev-guide.md) | How to implement a new agent, framework layer, or milestone; Python+Claude techniques |
+| [docs/foundations/milestone-update-pattern.md](foundations/milestone-update-pattern.md) | How to update pre-M4.1 milestone plans to the current GNN pattern (use when revising M6+) |
 | [docs/git-workflow.md](git-workflow.md) | Branch naming, commit conventions, merge strategy |
 | [.devcontainer/README.md](../.devcontainer/README.md) | Dev container setup, ports, secrets, rebuild behaviour |
 
