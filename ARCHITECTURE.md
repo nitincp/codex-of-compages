@@ -1,18 +1,16 @@
 # Faber — Architecture Document
 
 > **Faber** *(Latin)*: maker, artisan, smith, architect.  
-> A powerful engineering guild acting as galactic architects — building systems through a council of field agents.
+> A prompt engineering project that transforms requirements into a layered stack of formal specifications using a minimal council of LLM agents.
 
-**Prompt Engineering Project for Adaptive Formal Specification**  
 **Author:** Nitin Pawar | **Date:** June 2026  
-**Status:** Active — M0–M4 proven; M4.1 GNN PoC in progress (M4.1 M0–M1 proven)  
-**Companion documents:** `Greenfield_Development_Agent_Council-1.md`, `GraphRAG_GNN_Prompt_Engineering_Project_Final.md`
+**Status:** Active — M0–M4 proven; M4.1 GNN PoC in progress (M4.1 M0–M3 proven)
 
-> **Implementation grounding** — this document captures design intent written during project setup.
-> For current implementation state, milestone progress, and the GNN substrate pattern, the authoritative sources are:
-> - `CLAUDE.md` — implementation guidance, milestone folder layout, GNN runner pattern
-> - `BACKLOG.md` — milestone task lists with proven (`[x]`) and pending (`[ ]`) items
-> - `analysis_opportunities.md` — GNN analysis grounding, confirmed signals, open hypotheses
+> This document captures **design intent**. For current implementation state and session guidance:
+> - `README.md` — current milestone state, where to look for what
+> - `CLAUDE.md` — implementation rules, commands, invariants
+> - `docs/running-with-claude.md` — session management and analytical workflow
+> - `BACKLOG.md` — milestone task lists with proven/pending items
 
 ---
 
@@ -46,137 +44,23 @@ This is a **prompt engineering project first**. Every agent prompt is a **layere
 
 ---
 
-## How This Differs from Senatus
-
-| Dimension | Senatus | Faber |
-|---|---|---|
-| Primary framing | Agent council for DDD modeling | Prompt engineering project |
-| Spec strategy | Fixed (DDD → Gherkin) | Adaptive — Spec Advisor selects per layer |
-| Inter-agent medium | Free-text DDD summaries | Formal spec artifacts |
-| Agent prompts | Ad-hoc strings | Composed from CLEAR/COSTAR/RACE/CRISPE primitives |
-| Complexity scaling | One mode | Spec stack depth = complexity |
-| Pipeline | Fixed sequence | Recursive layered visits |
-| Consensus | Optimistic (write, surface conflicts) | Deliberative (Coordinator gates layer transitions) |
-| DDD role | Primary output | One selectable option at the domain layer |
-| Human driver | Always required | SME Agent simulates human for automated flows |
-
-Senatus is a capable implementation of layer 3 (domain-level CML/DDD) of Faber's spec ladder. It can be used as a plugin or reference implementation for that layer.
-
----
-
-## Prompt Framework Layer
-
-Frameworks are implemented as Python dataclasses with `build() -> str`.
-Assembled via `ComposedPrompt([layer1, layer2, ...]).build()`.
-Full reference and one-shot examples: `docs/foundations/composition_framework.md`.
-
-**Taxonomy — four orthogonal dimensions:**
-
-```
-Structure    COSTAR, CRISPE, CLEAR, RACE       — prompt shape + output format
-Reasoning    ChainOfThought, ReActLoop          — explicit, auditable thinking steps
-Verification ConstitutionalAI                   — critique → revise loop, output gate
-Technique    PersonaLayer, FewShot              — specific capability applied to task
-```
-
-**Composition rules:**
-1. One layer per dimension per agent — no overlap, no contradiction
-2. Structure first, Verification always last
-3. The loop-back (Constitutional AI revision) is not optional — every agent gates its output
-
-**Agent chains (summary — full detail in `docs/foundations/composition_framework.md`):**
-
-```
-SME Agent:       CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩
-Spec Advisor:    CLEAR → COSTAR → ChainOfThought → [emits CRISPE meta-prompt]
-Spec Specialist: CRISPE (injected) → FewShot → ConstitutionalAI ↩
-Coordinator:     CLEAR → ReActLoop
-Test Engineer:   CRISPE → FewShot → ConstitutionalAI ↩
-```
-
-**VOICE is retired.** Replaced by: COSTAR (Structure) + PersonaLayer (Technique) + ConstitutionalAI (Verification).
-See `docs/decisions/ADR-002_voice-retired.md`.
-
----
-
 ## The SME Agent
 
-### Role
+The SME Agent is a **full persona-driven multi-domain simulation agent**. It can embody any domain expert — fintech product manager, healthcare administrator, logistics lead, retail CTO — and drive realistic multi-turn requirements into the council across any domain.
 
-The SME Agent is a **full persona-driven multi-domain simulation agent**. It can embody any domain expert — a fintech product manager, a healthcare administrator, a logistics operations lead, a retail CTO — and drive realistic multi-turn requirements into the council across any domain.
+It is not tied to a specific application domain. Its value is in the simulation: stress testing the council, enabling regression across builds, and powering demos without a human in the loop.
 
-It is not tied to a specific application domain. Its value is in the simulation itself: stress testing the council, enabling regression across builds, and powering demo sessions — all without a human in the loop.
+The council never distinguishes between human and SME Agent input. This is by design.
 
-In **human mode** the user IS the SME; the SME Agent is inactive.  
-In **automated mode** the SME Agent drives the council programmatically, accumulating council responses across turns to produce realistic back-and-forth.  
-In **augmented mode** (future) the SME Agent suggests or refines what the human types.
-
-The council never distinguishes between the two modes. This is by design.
-
-### Framework: CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩
-
-**VOICE is retired.** It baked three dimensions (Structure, Technique, Verification) into one
-custom framework. Replaced by the standard composition stack. See `docs/decisions/ADR-002_voice-retired.md`.
-
-The SME Agent composition chain:
-
-```
-CLEAR (Structure)         — session context: turn number, prior council output, domain brief
-COSTAR (Structure)        — task shape: objective, output format, audience (Spec Advisor)
-PersonaLayer (Technique)  — identity: role, background, domain priorities, communication style
-ConstitutionalAI (Verification) ↩ — authenticity gate: sounds like a stakeholder? reacts
-                                    to council? consistent with prior turns? revise if not.
-```
-
-`Interaction` history (conversation accumulation across turns) is carried in the COSTAR
-`context` field in Phase A and in a dedicated `interaction` field in Phase B (Reflexion pattern).
-
-### What the SME Agent produces
-
-```
-SMEOutput
-  requirement_text      STRING   — the requirement, in domain-expert voice
-  scenario_type         ENUM     — new_feature | change | removal | conflict
-  domain_terms          LIST     — domain terminology used (feeds glossary)
-  reacts_to_council     BOOL     — whether this turn responds to prior council output
-  confidence            FLOAT    — how well-grounded in the persona this output is
-  persona_used          STRING   — which persona was active
-```
-
-### Two phases
-
-**Phase A** (Milestone 2 — early, cheap, immediately useful):
-- Stateless per call — no conversation history
-- Single generic persona, configured inline as a dict
-- Enough to drive the Spec Advisor PoC and validate the pipeline automatically
-- `simulate.py` runner: `--domain "e-commerce" --turns 3` → N requirement messages → N council passes
-
-**Phase B** (Milestone 7 — after council is stable):
-- YAML persona library in `src/agents/personas/` — any domain, any role
-- Multi-turn conversation history — SME accumulates prior council responses across turns
-- Full scenario coverage: change requests, removals/deprecations, conflicting requirements
-- `sme: <domain>` command in Chainlit UI — start a live simulation observable in the browser
-- Benchmark suite — fixed set of domains × scenarios; compare graph quality metrics across builds
-
-**Why split?** Phase A unblocks automated testing for all subsequent milestones cheaply. Phase B waits until the council is stable so SME failures are clearly input-quality issues, not council bugs.
-
-### Position in the pipeline
-
-```
-SME Agent  →  Spec Advisor (visit 1)  →  Spec Specialist  →  [more layers]  →  Test Engineer
-    ↑                  ↑ (prior specs from Kuzu)                                     ↓
-  (human or                                                                   Coordinator
-   automated,                                                                 (gates each layer)
-   multi-turn)
-```
-
-Phase A: SME fires once per session. Phase B: SME fires once per turn, reads council output, generates follow-up requirement for the next turn.
+**Composition:** `CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩`  
+**Full detail:** `docs/foundations/composition_framework.md` — SME Agent section.  
+**Phase A/B split and persona library:** `docs/foundations/dev-guide.md`.
 
 ---
 
 ## The Spec Advisor
 
-The Spec Advisor is the intellectual core of Faber. It is not a one-shot classifier — it is a **recurring council member** visited at each layer of the system decomposition.
+The Spec Advisor is the intellectual core of Faber — a **recurring council member** visited at each layer of the system decomposition, not a one-shot classifier.
 
 ### What it does at each visit
 
@@ -248,19 +132,21 @@ For simple projects the Spec Advisor visits layers 2 and 5 only. Spec stack dept
 
 ## Minimal Agent Council (5 agents)
 
-| Agent | Framework | Role | Invoked |
+| Agent | Composition | Role | Invoked |
 |---|---|---|---|
-| **SME Agent** | CLEAR → COSTAR → PersonaLayer → ConstitutionalAI ↩ | Multi-domain persona simulation; drives requirements across any domain | Once per turn (automated mode); stateless in Phase A, history-accumulating in Phase B |
-| **Spec Advisor** | COSTAR → emits CRISPE | Selects spec language per layer; generates Spec Specialist prompt | Once per layer, first in each CLEAR turn |
-| **Spec Specialist** | CRISPE (dynamic, from Spec Advisor) | Generates the formal spec in the selected language | Once per layer, after Spec Advisor |
-| **Test Engineer** | CRISPE | Derives Gherkin tests from the full spec stack | Once, after all spec layers complete |
-| **Coordinator** | CLEAR | Gates layer transitions; enforces CLEAR loop; surfaces conflicts | Throughout — meta-agent |
+| **SME Agent** | `CLEAR → COSTAR → PersonaLayer → CAI ↩` | Multi-domain persona simulation; drives requirements across any domain | Once per turn (automated); stateless Phase A, history-accumulating Phase B |
+| **Spec Advisor** | `CLEAR → COSTAR → CoT → [emits CRISPE]` | Selects spec language per layer; generates Spec Specialist prompt at runtime | Once per layer visit |
+| **Spec Specialist** | `CRISPE (injected) → FewShot → CAI ↩` | Generates the formal spec in the selected language | Once per layer, after Spec Advisor |
+| **Test Engineer** | `CRISPE → FewShot → CAI ↩` | Derives Gherkin tests from the full spec stack | Once, after all spec layers complete |
+| **Coordinator** | `CLEAR → ReActLoop` | Gates layer transitions; enforces CLEAR loop; surfaces conflicts | Throughout — meta-agent |
+
+**The meta-prompting moment:** Spec Specialist has no fixed system prompt. Its entire prompt is generated at runtime by the Spec Advisor (a CRISPE prompt, injected with parent-layer specs). This is the architectural contribution that makes spec language selection adaptive rather than hard-coded.
 
 ---
 
 ## Graph Schema
 
-### New node types
+### Node types (Spec Council — wired from M9)
 
 ```
 Specification
@@ -278,7 +164,7 @@ Requirement
   persona_used  STRING  -- which SME persona produced this (empty if human)
 ```
 
-### New edge types
+### Edge types
 
 ```
 GROUNDS:       Specification → Specification    -- lower layer grounds in upper
@@ -287,7 +173,23 @@ REFINES:       Specification → Specification    -- revision of same-layer spec
 STATED_BY:     Requirement → (session metadata) -- traceability to SME turn
 ```
 
-### Full traceability path
+### GNN PoC schema (M4.1 track — live in data/kuzu now)
+
+Each M4.1 sub-milestone owns its own tables. Cross-milestone edges carry the ML signal:
+
+```
+MilestoneRun    — subgraph anchor per invocation
+FrameworkLayer  — M1: 9 framework builders, raw build metrics
+SpecRun         — M2/M3/M4: Spec Advisor output per brief
+RevisionEvent   — M4: CAI revision state per run
+CAPTURED_IN     — Node → MilestoneRun anchor edge
+REASONING_ADDS  — M2 SpecRun → M3 SpecRun: confidence_delta, step_count, evaluation_depth
+VERIFICATION_ADDS — M3 SpecRun → M4 SpecRun: revised, cai_principle_triggered
+AnalysisNote    — Claude's analytical findings (schema invented ad-hoc per session)
+ANALYZED        — AnalysisNote → any node: the feedback layer
+```
+
+### Full traceability path (Spec Council, M9+)
 
 ```
 Requirement (from SME)
@@ -300,115 +202,16 @@ Requirement (from SME)
 
 ---
 
-## PoC Scope (Milestone 2 target)
-
-Prove the core selection loop with one layer, end-to-end:
-
-1. SME Agent produces a requirement (automated mode, generic domain expert persona)
-2. Spec Advisor runs: classifies the domain layer, selects spec language, emits a CRISPE prompt
-3. Spec Specialist runs with that prompt: produces a domain spec
-4. `Requirement` and `Specification` nodes written to Kuzu with `DERIVED_FROM` edge
-5. Output shown in Chainlit UI: SME requirement → Spec Advisor justification → spec content
-
-**Success criteria:** Given two projects of different complexity (a simple CRUD app vs. a multi-service distributed system), the SME Agent produces domain-appropriate requirement text AND the Spec Advisor selects different spec languages with coherent justifications.
-
----
-
-## Infra & Toolchain
-
-To be extracted from the Senatus project. The following components are reusable with adaptation:
-
-| Component | From Senatus | Changes for Faber |
-|---|---|---|
-| `BaseAgent` | `src/agents/base.py` | Add framework builder support — accepts a prompt builder, not a raw string |
-| `GraphStore` | `src/graph/store.py` | Add `Specification`/`Requirement` nodes, new edge types |
-| `GraphSchema` | `src/graph/schema.py` | Extend `NodeType`/`EdgeType` enums |
-| Chainlit UI | `src/ui/app.py` | Layer visit progress display; SME mode toggle |
-| LangGraph skeleton | `src/orchestration/council.py` | Rebuild for deliberative Coordinator-gated flow |
-| devcontainer setup | `.devcontainer/` | Copy verbatim |
-| `bootstrap-secrets.sh` | `.devcontainer/` | Copy verbatim |
-| `pyproject.toml` deps | `pyproject.toml` | Same core deps |
-
-**New components (no Senatus equivalent):**
-
-```
-src/frameworks/               — all prompt builder classes (CLEAR, COSTAR, CRISPE, RACE,
-                                PersonaLayer, ChainOfThought, ReActLoop, ConstitutionalAI,
-                                FewShot, ComposedPrompt)
-src/agents/sme_agent.py       — SME Agent (CLEAR → COSTAR → PersonaLayer → ConstitutionalAI)
-src/agents/spec_advisor.py    — Spec Advisor (CLEAR → COSTAR → CoT → emits CRISPE)
-src/agents/spec_specialist.py — dynamically configured Spec Specialist (CRISPE → FewShot → CAI)
-src/orchestration/coordinator.py — deliberative Coordinator (CLEAR → ReAct)
-src/agents/personas/          — YAML persona files (Phase B)
-```
-
----
-
-## Directory Layout
-
-```
-faber/
-├── ARCHITECTURE.md          — design intent (written pre-implementation; see grounding note above)
-├── CLAUDE.md                — implementation guidance (authoritative for Claude Code sessions)
-├── BACKLOG.md               — milestone task lists and gates
-├── analysis_opportunities.md — GNN analysis grounding; confirmed signals, open hypotheses
-├── pyproject.toml           — dependencies
-├── .env                     — non-sensitive config (gitignored)
-├── .devcontainer/           — devcontainer + bootstrap-secrets
-├── data/kuzu/               — Kuzu GNN graph DB with accumulated subgraphs (gitignored)
-├── docs/
-│   ├── INDEX.md                        — thesis navigator (entry point)
-│   ├── thesis/CLAIM.md                 — central claim + per-milestone hypotheses
-│   ├── foundations/
-│   │   ├── composition_framework.md    — research grounding, agent chains, one-shot examples
-│   │   └── prompt_frameworks.md        — per-framework field reference
-│   ├── decisions/                      — ADR log (ADR-001–ADR-004 active; ADR-005 deferred to M8)
-│   ├── evidence/                       — PoC results (M00–M04 complete; M4.1 in progress)
-│   └── analysis/                       — alternatives considered, tensions, debates
-├── src/
-│   ├── frameworks/          — all framework builder classes (proven in M1)
-│   │   ├── costar.py, crispe.py, clear.py, race.py    — Structure dimension
-│   │   ├── chain_of_thought.py, react.py               — Reasoning dimension
-│   │   ├── constitutional_ai.py                        — Verification dimension
-│   │   ├── few_shot.py, persona.py                     — Technique dimension
-│   │   └── composed.py                                 — ComposedPrompt assembler
-│   ├── agents/              — Spec Council agents (M2–M4 proven; M5+ pending)
-│   │   ├── base.py          — BaseAgent[T] generic
-│   │   ├── schemas.py       — Pydantic output schemas (M4 version; 7 fields)
-│   │   └── spec_advisor.py  — SpecAdvisorAgent, current = M4 (COSTAR + CoT + CAI)
-│   ├── milestones/          — GNN PoC track (M4.1 sub-milestones)
-│   │   └── m1/              — M4.1 M1: framework layer GNN ✓ proven
-│   │       ├── frameworks/  — frozen copies of framework builders tagged [M1-copy]
-│   │       ├── graph/
-│   │       │   ├── schema.py  — MilestoneRun, FrameworkLayer, CAPTURED_IN tables
-│   │       │   └── runner.py  — extract(), seed(conn, run_id), dump()
-│   │       ├── run.py         — CLI: python3 -m src.milestones.m1.run [run-id]
-│   │       └── tests/test_m1.py — gate tests (ephemeral DB, 11/11 passing)
-│   ├── graph/               — Spec Council graph store (used from M9)
-│   │   ├── schema.py        — NodeType/EdgeType enums (Specification, Requirement)
-│   │   └── store.py         — GraphStore (Kuzu)
-│   ├── orchestration/       — pipeline stubs (wired from M8)
-│   └── ui/
-│       ├── app.py           — Chainlit shell (wired at M7)
-│       └── dashboard.py     — Streamlit milestone runner (M0 proven)
-└── tests/                   — Spec Council milestone gate tests
-    ├── test_m0_dashboard.py — M0 Playwright smoke tests ✓ 4/4
-    ├── test_m1_frameworks.py — M1 framework builder tests ✓ 22/22
-    └── test_m2_spec_advisor.py — M2/M3/M4 SpecAdvisor tests ✓ 27/27
-```
-
----
-
 ## Key Design Decisions
 
 | Decision | Rationale |
 |---|---|
 | **Faber** as project name | Latin for maker/artisan/architect — the guild metaphor maps onto the agent council; "homo faber" (man as maker) grounds the PE-first philosophy |
-| SME Agent on CLEAR → COSTAR → PersonaLayer → CAI (VOICE retired) | VOICE baked Structure + Technique + Verification into one custom framework. Replaced by the standard composition stack: CLEAR (session context), COSTAR (output format), PersonaLayer (identity), ConstitutionalAI (authenticity gate). See `docs/decisions/ADR-002_voice-retired.md` |
-| SME Agent is council-transparent | The council never knows if input is human or SME Agent. The SME Agent is not tied to any specific domain — it simulates any domain expert persona. Enables automated testing, regression, and benchmark runs without special council code paths |
-| Prompt frameworks as Python classes | Composability, testability, and consistency — a COSTARPrompt object can be inspected and modified; a raw string cannot |
-| Spec Advisor emits CRISPE prompt | The Spec Specialist's behavior IS its prompt; generating it is the Spec Advisor's primary product |
-| DDD/CML is one option, not the default | DDD suits complex domain-rich systems; lighter formalisms serve simpler projects better |
-| Deliberative consensus | Spec quality at lower layers depends on correctness of specs above — optimistic writes would propagate errors silently |
-| 5 agents max | SME Agent + Spec Advisor + Spec Specialist + Test Engineer + Coordinator. Complexity is in Spec Advisor's selection logic, not headcount |
-| Separate repo from Senatus | Different grounding principles (PE-first vs council-first), different consensus model, different graph schema |
+| SME Agent on CLEAR → COSTAR → PersonaLayer → CAI (VOICE retired) | VOICE baked Structure + Technique + Verification into one custom framework. Replaced by the standard composition stack. See `docs/decisions/ADR-002_voice-retired.md` |
+| SME Agent is council-transparent | The council never knows if input is human or SME Agent. Enables automated testing, regression, and benchmark runs without special council code paths |
+| Prompt frameworks as Python dataclasses | Composability, testability, consistency — a COSTARPrompt object is inspectable and modifiable; a raw string is not. Each class independently unit-testable. |
+| Spec Advisor emits CRISPE prompt at runtime | The Spec Specialist's behaviour IS its prompt. Generating it is the Spec Advisor's primary product — this is the meta-prompting moment (Suzgun & Kalai 2024). |
+| DDD/CML is one option, not the default | DDD suits complex domain-rich systems; lighter formalisms serve simpler projects better. The Spec Advisor selects based on concerns, not convention. |
+| Deliberative consensus | Spec quality at lower layers depends on correctness at higher layers — optimistic writes would propagate errors silently. Coordinator gates every transition. |
+| 5 agents max | Complexity is in the Spec Advisor's selection logic, not headcount. Adding agents is not the answer. |
+| GNN-first substrate | Kuzu is not a storage layer — it is the model. Every milestone grows the schema. Cross-milestone edges (REASONING_ADDS, VERIFICATION_ADDS) carry the learning signal across runs. |

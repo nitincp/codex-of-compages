@@ -1,7 +1,7 @@
 # Faber — Central Claim and Thesis Hypotheses
 
 **Author:** Nitin Pawar | **Date:** June 2026  
-**Status:** Active — M00–M04 confirmed; M4.1 GNN PoC in progress (M4.1 M0–M1 confirmed)
+**Status:** Active — M00–M04 confirmed; M4.1 GNN PoC in progress (M4.1 M0–M3 confirmed; M4.1 M4 next)
 
 ---
 
