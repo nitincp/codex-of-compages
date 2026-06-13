@@ -15,7 +15,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done
 | **M2** Spec Advisor — structure only | 2026-06-12 | [COMPLETED.md#m2](COMPLETED.md#m2) · [evidence](docs/evidence/M02_spec_advisor_structure.md) |
 | **M3** Add reasoning (CoT) | 2026-06-12 | [COMPLETED.md#m3](COMPLETED.md#m3) · [evidence](docs/evidence/M03_reasoning_layer.md) |
 | **M4** Add verification (CAI) | 2026-06-12 | [COMPLETED.md#m4](COMPLETED.md#m4) · [evidence](docs/evidence/M04_verification_layer.md) |
-| **M4.1** M0–M3 + ETL — GNN substrate *(M4.1 M4 active)* | 2026-06-12 | [M0](COMPLETED.md#m41-m0) · [M1](COMPLETED.md#m41-m1) · [M2](COMPLETED.md#m41-m2) · [ETL](COMPLETED.md#m41-etl) · [M3](COMPLETED.md#m41-m3) · [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) |
+| **M4.1** M0–M4 + ETL — GNN substrate | 2026-06-13 | [M0](COMPLETED.md#m41-m0) · [M1](COMPLETED.md#m41-m1) · [M2](COMPLETED.md#m41-m2) · [ETL](COMPLETED.md#m41-etl) · [M3](COMPLETED.md#m41-m3) · [M4](COMPLETED.md#m41-m4) · [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) |
 
 ---
 
@@ -89,19 +89,19 @@ M4 schema adds `revised: bool`, `revision_notes: str` — restore from the same 
 Copy framework builders: `costar.py`, `chain_of_thought.py`, `constitutional_ai.py`, `composed.py` as `[M4-copy]`.
 
 - [x] `src/milestones/m4/migration/` — schema snapshot + transform (done as part of M4.1 ETL)
-- [ ] Restore M4 agent + schema from git `a966ce9` into `src/milestones/m4/`
-- [ ] `src/milestones/m4/graph/schema.py` — `RevisionEvent` node table; `VERIFICATION_ADDS` rel table:
+- [x] Restore M4 agent + schema from git `a966ce9` into `src/milestones/m4/`
+- [x] `src/milestones/m4/graph/schema.py` — `RevisionEvent` node table; `VERIFICATION_ADDS` rel table:
   - `RevisionEvent`: `run_id`, `brief_label`, `revised`, `cai_principle_triggered`, `assumption_inventory_added`
   - `VERIFICATION_ADDS` FROM M3 `SpecRun` TO M4 `SpecRun`: `revised`, `confidence_delta`, `cai_principle_triggered`, `signal_count_below_threshold`, `assumption_inventory_added`
-- [ ] `src/milestones/m4/graph/runner.py` — seeds `RevisionEvent` + `VERIFICATION_ADDS` edge from matched M3 `SpecRun`
-- [ ] `src/milestones/m4/run.py` — calls live M4 Spec Advisor for all three briefs (simple, complex, vague)
-- [ ] `src/milestones/m4/tests/test_m4_gnn.py` — gate tests (ephemeral DB):
+- [x] `src/milestones/m4/graph/runner.py` — seeds `RevisionEvent` + `VERIFICATION_ADDS` edge from matched M3 `SpecRun`
+- [x] `src/milestones/m4/run.py` — calls live M4 Spec Advisor for all three briefs (simple, complex, vague)
+- [x] `src/milestones/m4/tests/test_m4_gnn.py` — 32 gate tests (ephemeral DB):
   - `RevisionEvent`: `revised=True` for vague brief, `revised=False` for strong briefs
   - `VERIFICATION_ADDS` edge exists with correct `confidence_delta` and `cai_principle_triggered`
   - Vague brief `SpecRun` has no incoming `REASONING_ADDS` — topological asymmetry preserved
-  - **First GNN query** (topology-based retrieval): given `{revised=False, step_count ≥ 5, evaluation_depth=per_concern}`, traverse `REASONING_ADDS` + `VERIFICATION_ADDS`; assert result is `m4_complex` or `m3_complex`, not `m4_vague`
-- [ ] Claude-in-loop: run OPP-2 (CAI revision rate), OPP-5 (cross-milestone token stack); resolve H4; write `AnalysisNote`
-- [ ] Update `analysis_opportunities.md`: OPP-2, OPP-5 completed; H4 resolved
+  - **First GNN query** (topology-based retrieval): given `{revised=False, step_count ≥ 5, evaluation_depth=per_concern}`, traverse `REASONING_ADDS` + `VERIFICATION_ADDS`; assert vague NOT in results, complex IN results
+- [x] Claude-in-loop: 3 CLI runs; OPP-2 (CAI revision rate), OPP-5 (cross-milestone token stack) analysed; H4 confirmed; 3 `AnalysisNote` nodes written
+- [x] Update `analysis_opportunities.md`: OPP-2, OPP-5 completed; H4 confirmed
 
 **Success criteria** (gate to M5):
 > `VERIFICATION_ADDS` cross-schema edges seeded with delta properties. Vague brief topological asymmetry preserved.
