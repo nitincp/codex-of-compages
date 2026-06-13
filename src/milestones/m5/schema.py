@@ -57,10 +57,12 @@ class SpecialistOutput(BaseModel):
         description="The formal specification language used (e.g. 'JSON Schema', 'TLA+', 'OpenAPI')."  # noqa: E501
     )
     well_formedness_notes: str = Field(
-        description="Notes from the self-check for syntactic well-formedness and coverage."
+        description="Notes from the self-check for syntactic well-formedness and coverage.",
+        default="",
     )
     confidence: float = Field(
         description="Confidence in the specification, 0.0 to 1.0.",
         ge=0.0,
         le=1.0,
+        default=0.0,
     )

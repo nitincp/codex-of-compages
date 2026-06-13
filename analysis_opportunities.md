@@ -125,6 +125,48 @@ New schema fields: `milestone`, `hypothesis_id`, `direction`, `metric_before`, `
 
 ---
 
+## M5 — Full Spec Advisor with CRISPE meta-prompt (available from 2026-06-13)
+
+**Seeded nodes:** `SpecRun` × 9 (3 runs × 3 briefs), `MetaPromptEvent` × 9, `META_PROMPT_ADDS` × 9  
+**Persistent DB:** `data/kuzu` — run `python3 -m src.milestones.m5.run` to add a subgraph  
+**AnalysisNote nodes written (7):** `m5-crispe-structural-invariant`, `m5-confidence-zero-variance`, `m5-insight-ordering`, `m5-statement-uniformity`, `m5-vague-revision-lock`, `m5-crispe-prompt-length-ordering`, `m5-3hop-topology-confirmed`
+
+### Observed signals (M5, 3-run analysis, 2026-06-13)
+
+**Confirmed across 3 runs** (`python3 -m src.milestones.m5.run` × 3, model: claude-sonnet-4-6, valid run IDs: `m5-20260613-224118`, `m5-20260613-224509`, `m5-20260613-224727`):
+
+| Brief | Lang | Layer | Conf mean | Conf range | Lat mean | Steps | Revised |
+|---|---|---|---|---|---|---|---|
+| simple | OpenAPI | api | 0.950 | **0.000** | 20,930ms | 5–8 | never |
+| complex | TLA+ | system | 0.950 | **0.000** | 23,604ms | 8 | never |
+| vague | OpenAPI | api | 0.400 | **0.000** | 17,699ms | 5 | always |
+
+_Note: vague selects OpenAPI/api (not JSON Schema/domain as mock fixtures assumed) — real LLM behavior differs from test mocks._
+
+**MetaPromptEvent CRISPE quality signals:**
+
+| Brief | crispe_field_count | avg insight_chars | insight range | avg prompt_chars | prompt variance |
+|---|---|---|---|---|---|
+| complex | **6 (all runs)** | 1,222 | 149 chars (12.2%) | 1,859 | 8.0% |
+| simple | **6 (all runs)** | 851 | 29 chars (3.4%) | 1,491 | 1.9% |
+| vague | **6 (all runs)** | 754 | 207 chars (27.5%) | 1,394 | 14.8% |
+
+_capacity_matches_lang=True for ALL 9 MetaPromptEvent nodes. statement_char_count=194 identical across all (template-driven, not content-driven)._
+
+**Key observations:**
+
+- **CRISPE is structurally invariant**: field_count=6 and capacity_match=True for 100% of runs/briefs. The builder has no structural failure mode.
+- **Confidence zero-variance lock at M5**: all 3 briefs show 0.000 confidence range — stricter than any prior milestone (M4 vague had 0.150 range).
+- **Insight section carries all brief-specific information**: Statement (194 chars, fixed) and Capacity (15–18 chars, fixed template) are template-driven. The Insight section (justification text) is the sole variable-length field.
+- **Vague-to-complex insight ratio**: 1.62× — complex justifications are 62% longer than vague on average, but vague has 7× higher variance.
+- **3-hop topology end-to-end confirmed**: REASONING_ADDS (M2→M3) → VERIFICATION_ADDS (M3→M4) → META_PROMPT_ADDS (M4→M5) reachable for simple + complex; vague absent (no VERIFICATION_ADDS input into vague M4 node). OPP-8 topology retrieval is valid across the full 4-layer chain.
+- **SpecSpecialist lang determinism**: complex brief always produces TLA+ spec. Confidence field sometimes omitted by the LLM despite being `required` in tool schema — real-world schema non-compliance noted (fixed with default=0.0 in `SpecialistOutput`).
+
+AnalysisNote nodes written: `m5-crispe-structural-invariant`, `m5-confidence-zero-variance`, `m5-insight-ordering`, `m5-statement-uniformity`, `m5-vague-revision-lock`, `m5-crispe-prompt-length-ordering`, `m5-3hop-topology-confirmed`  
+Edges: `ANALYZED_META` × 63 (7 notes × 9 MetaPromptEvent nodes)
+
+---
+
 ## Opportunities
 
 ### OPP-1: Reasoning-layer token delta (M1 → M3)
@@ -174,10 +216,11 @@ does CLEARSession change the selection at all, or does it only affect justificat
 ---
 
 ### OPP-4: PersonaLayer impact on SME output
-**Available when:** M5 seeded (SME Agent active)  
-**Query:**
+**Available when:** M7 seeded (SME Agent with PersonaLayer active — not yet built)  
+**Note:** M5 does not include PersonaLayer in its composition (COSTAR + CoT + CAI only). The schema fields `sme_domain` and `output_token_count` do not exist on M5 SpecRun. This OPP is deferred to M7+ when the SME Agent is promoted to `src/agents/` with FewShot + full CAI.  
+**Query (once M7 exists):**
 ```cypher
-MATCH (r:SpecRun {milestone: 'm5'})
+MATCH (r:SpecRun {milestone: 'm7'})
 RETURN r.sme_domain, avg(r.confidence), avg(r.output_token_count)
 ORDER BY r.sme_domain
 ```
@@ -255,7 +298,7 @@ The result is the FewShot candidate to inject into the next Spec Advisor call.
 | ID | Hypothesis | Testable at | Status |
 |---|---|---|---|
 | H1 | ChainOfThought token density (175) correlates with reasoning depth in M3 output | M3 | **confirmed** — 6/6 per_concern, ≥5 named-candidate steps |
-| H2 | PersonaLayer low expansion (0.265) → low impact on SME output variance | M5 | open |
+| H2 | PersonaLayer low expansion (0.265) → low impact on SME output variance | M7 | open (deferred — M5 does not use PersonaLayer) |
 | H3 | COSTAR vs CLEARSession in Structure slot produces measurable spec quality delta | M2-variant | open |
 | H4 | ConstitutionalAI revision rate < 30% when confidence threshold ≥ 0.7 | M4 | **confirmed** — 0% for conf≥0.7 briefs; 100% for vague (conf<0.5); binary split |
 | H5 | M2→M3 token delta is dominated by ChainOfThought contribution (≈175 tokens) | M3 | **confirmed** — +175 exactly CoT; COSTAR unchanged |

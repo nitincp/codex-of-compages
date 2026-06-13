@@ -479,3 +479,54 @@ Framework builders tagged `[M4-copy]`. Milestone self-contained — no imports f
 3 CLI runs seeded. 3 `AnalysisNote` nodes written. Migration: 12 tables verified, blue-green rotation clean.
 
 → Evidence: [M04_1_graphrag_gnn_poc.md](docs/evidence/M04_1_graphrag_gnn_poc.md)
+
+---
+
+<a id="m5"></a>
+## Milestone 5 — Layer 4 PoC: Full Spec Advisor — Meta-Prompt Output ✓
+
+**What is being proven**: the Spec Advisor (M4 chain: COSTAR + CoT + CAI, unchanged) can programmatically generate a CRISPE meta-prompt from its structured output. That prompt, injected into a Spec Specialist stub as its system prompt, produces a non-empty formal spec. All 6 CRISPE fields are populated for all 3 briefs. `META_PROMPT_ADDS` cross-schema edges cover all 3 briefs — first full cross-schema coverage in the chain.
+
+- [x] `src/milestones/m5/agent.py` — `SpecAdvisorAgent` (M4 chain, unchanged) + `build_crispe_prompt(output)` post-LLM step
+  - `capacity = "{selected_lang} specialist"`, `role` = fixed council role, `insight = output.justification`, `statement` = scoped to `output.layer`, `personality`/`experiment` = `CRISPEPrompt` defaults
+  - CRISPE prompt appended to `SpecAdvisorOutput.specialist_crispe_prompt` (not from LLM call)
+- [x] `src/milestones/m5/spec_specialist.py` — `SpecSpecialistAgent` stub: receives CRISPE string as system prompt; forced tool-use returns `SpecialistOutput`
+- [x] `src/milestones/m5/schema.py` — `SpecAdvisorOutput` (M4 fields + `specialist_crispe_prompt`), `SpecialistOutput` (`spec_content`, `spec_lang`, `well_formedness_notes`, `confidence`)
+- [x] `src/milestones/m5/graph/schema.py` — `MetaPromptEvent` node (CRISPE quality signals per brief per run), `META_PROMPT_ADDS` rel (FROM SpecRun m4 TO SpecRun m5), `ANALYZED_META` rel (FROM AnalysisNote TO MetaPromptEvent)
+- [x] `src/milestones/m5/graph/runner.py` — `seed()` writes SpecRun + MetaPromptEvent + META_PROMPT_ADDS for all 3 briefs; `infer_crispe_field_count()`, `infer_capacity_matches_lang()`, `infer_insight_char_count()` helpers
+- [x] `src/milestones/m5/migration/pass_01/` — adds `specialist_crispe_prompt STRING` to `SpecRun`; backfills `''` for pre-M5 rows
+- [x] `src/milestones/m5/tests/test_m5.py` — 30 gate tests (ephemeral DB):
+  - Schema: `MetaPromptEvent`, `META_PROMPT_ADDS`, `ANALYZED_META` tables exist
+  - `specialist_crispe_prompt` non-empty for all 3 briefs
+  - CRISPE prompt contains all 6 headers (`**Capacity**` … `**Experiment**`)
+  - `crispe_field_count=6` for all 3 briefs; `capacity_matches_lang=True` for all 3
+  - `insight_char_count > 50` for simple + complex; vague insight < complex
+  - `META_PROMPT_ADDS` edge for all 3 briefs (first full coverage)
+  - 3-hop topology (REASONING_ADDS → VERIFICATION_ADDS → META_PROMPT_ADDS): simple + complex reachable; vague absent
+  - Integration test: `SpecSpecialistAgent` called with complex CRISPE → `spec_content` non-empty, `spec_lang == 'TLA+'`
+- [x] ETL migration run: M4 → M5 blue-green rotation (15 tables verified; `MetaPromptEvent`/`META_PROMPT_ADDS`/`ANALYZED_META` new; `SpecRun` gains `specialist_crispe_prompt`)
+- [x] Claude-in-loop: 3 CLI runs (`m5-20260613-224118`, `m5-20260613-224509`, `m5-20260613-224727`); 7 `AnalysisNote` nodes + 63 `ANALYZED_META` edges written
+- [x] `analysis_opportunities.md` updated: M5 section added; OPP-4 deferred to M7; H2 deferred
+
+**Verified** (2026-06-13): 30/30 M5 gate tests passing. 104/104 total tests clean (30 M5 + 74 prior). 3 CLI runs seeded. 7 signals persisted. ETL migration clean (15 tables verified after rotation).
+
+**Confirmed signals (3-run analysis):**
+
+| Brief | Lang | Layer | Conf mean | Conf range | Revised | CRISPE fc | insight_chars (avg) |
+|---|---|---|---|---|---|---|---|
+| complex | TLA+ | system | 0.950 | **0.000** | never | 6 | 1,222 |
+| simple | OpenAPI | api | 0.950 | **0.000** | never | 6 | 851 |
+| vague | OpenAPI | api | 0.400 | **0.000** | **always** | 6 | 754 |
+
+_All 9/9 MetaPromptEvent nodes: `crispe_field_count=6`, `capacity_matches_lang=True`._
+
+Key findings:
+- **CRISPE is structurally invariant**: field_count=6 and capacity_match=True for 100% of runs/briefs.
+- **Confidence zero-variance at M5**: 0.000 range for all 3 briefs — strongest confidence lock across all milestones (tighter than M4 vague: 0.150 range, and M3 simple: 0.010 range).
+- **Insight section carries all brief-specific information**: Statement (194 chars, fixed) and Capacity (~16 chars, fixed template) are template-driven. Insight is the sole variable-length field.
+- **Vague has 7× higher insight variance** than simple (207 vs 29 chars range) — low-signal briefs produce unstable justifications.
+- **3-hop topology confirmed end-to-end**: REASONING_ADDS (M2→M3) → VERIFICATION_ADDS (M3→M4) → META_PROMPT_ADDS (M4→M5) reachable for simple + complex; vague absent by design (no VERIFICATION_ADDS input).
+- **Real LLM behavior vs mocks**: vague brief selects OpenAPI/api in all real runs (both M4 and M5), not JSON Schema/domain as mock fixtures assumed.
+- **Tool schema non-compliance**: SpecSpecialistAgent's `required` fields (`well_formedness_notes`, `confidence`) sometimes omitted by the LLM. Fixed with Pydantic defaults — `spec_content` + `spec_lang` are always returned.
+
+→ Evidence: [M05_meta_prompt.md](docs/evidence/M05_meta_prompt.md)

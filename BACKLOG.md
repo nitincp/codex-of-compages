@@ -16,6 +16,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done
 | **M3** Add reasoning (CoT) | 2026-06-12 | [COMPLETED.md#m3](COMPLETED.md#m3) · [evidence](docs/evidence/M03_reasoning_layer.md) |
 | **M4** Add verification (CAI) | 2026-06-12 | [COMPLETED.md#m4](COMPLETED.md#m4) · [evidence](docs/evidence/M04_verification_layer.md) |
 | **M4.1** M0–M4 + ETL — GNN substrate | 2026-06-13 | [M0](COMPLETED.md#m41-m0) · [M1](COMPLETED.md#m41-m1) · [M2](COMPLETED.md#m41-m2) · [ETL](COMPLETED.md#m41-etl) · [M3](COMPLETED.md#m41-m3) · [M4](COMPLETED.md#m41-m4) · [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) |
+| **M5** Layer 4 PoC — Full Spec Advisor + meta-prompt output | 2026-06-13 | [COMPLETED.md#m5](COMPLETED.md#m5) · [evidence](docs/evidence/M05_meta_prompt.md) |
 
 ---
 
