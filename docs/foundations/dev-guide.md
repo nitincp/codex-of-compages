@@ -52,3 +52,61 @@ Check `docs/foundations/composition_framework.md` before deciding a new one is n
 
 If an **existing** Kuzu table needs structural change, create `migration/` — see `docs/foundations/kuzu_etl_strategy.md`.  
 If only **new** tables are added, `CREATE NODE TABLE IF NOT EXISTS` is sufficient — no migration.
+
+---
+
+## Python + Claude: project-specific techniques
+
+### How Claude navigates this codebase
+
+Claude reads `pyproject.toml` for package structure and `src/frameworks/__init__.py` for exported frameworks. The `_dimension` class attribute and `build() -> str` signature are the canonical contract for all framework classes — Claude checks these first.
+
+**Type hints are load-bearing for Claude.** The Pydantic schemas in `src/agents/schemas.py` and typed return values in `runner.py` let Claude write correct Cypher queries and analysis scripts without reading full implementations. Keep them accurate.
+
+### Running ad-hoc analysis scripts
+
+Scripts are ephemeral — run inline, not committed:
+
+```python
+import kuzu
+db = kuzu.Database("data/kuzu")
+conn = kuzu.Connection(db)
+result = conn.execute("""
+    MATCH (r:MilestoneRun)<-[:CAPTURED_IN]-(s:SpecRun)
+    WHERE r.milestone = 'm3'
+    RETURN s.brief_label, s.confidence, s.reasoning_step_count
+    ORDER BY s.confidence DESC
+""")
+while result.has_next():
+    print(result.get_next())
+```
+
+Save the output; discard the script. The output informs the `AnalysisNote` schema.
+
+### Pyright feedback loop
+
+Run pyright on the milestone before seeding:
+```bash
+pyright src/milestones/m{N}/
+```
+Catches field name mismatches between Pydantic schema and Kuzu INSERT before runtime. Run this before any `seed()` implementation is considered done.
+
+### Package isolation for milestone frameworks
+
+Each milestone imports from its own `src/milestones/m{N}/frameworks/` — **not** from `src/frameworks/`. If Claude writes `from src.frameworks.costar import COSTARPrompt` inside a milestone file, it is wrong.
+
+### Kuzu Cypher dialect — common Claude mistakes
+
+- No `WITH ... LIMIT` for pagination — use `RETURN ... LIMIT N` directly
+- `COPY REL FROM` requires named params: `(from='src_id', to='dst_id')`
+- Node IDs in this project are string PKs — query by `{id: "run_id:name"}`, not internal ID
+- `CREATE NODE TABLE IF NOT EXISTS` — the `IF NOT EXISTS` clause is required for ad-hoc `AnalysisNote` creation to be idempotent across sessions
+
+### Anthropic SDK patterns
+
+All agents use:
+- `tool_choice={"type": "any"}` — forced tool use, never `"auto"`
+- `response.content[0].input` — the tool call result dict (matches Pydantic schema)
+- `self._log_usage(response.usage)` — after every API call
+
+If Claude writes `tool_choice="auto"` or reads `response.content[0].text`, it is wrong for this project.

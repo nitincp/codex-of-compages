@@ -27,7 +27,9 @@ For new session orientation, start with `README.md` in the repo root.
 | [docs/foundations/composition_framework.md](foundations/composition_framework.md) | **Central architectural doc.** Research grounding (8 papers), framework taxonomy, full agent chains, one-shot examples for every layer. Read this before implementing anything. |
 | [docs/foundations/prompt_frameworks.md](foundations/prompt_frameworks.md) | Per-framework field reference (COSTAR, CRISPE, CLEAR, RACE, PersonaLayer, etc.) |
 | [docs/foundations/kuzu_etl_strategy.md](foundations/kuzu_etl_strategy.md) | Kuzu schema migration strategy — blue-green rotation, transform.cypher patterns, multi-pass layout |
-| [docs/foundations/dev-guide.md](foundations/dev-guide.md) | How to implement a new agent, framework layer, or milestone |
+| [docs/foundations/dev-guide.md](foundations/dev-guide.md) | How to implement a new agent, framework layer, or milestone; Python+Claude techniques |
+| [docs/git-workflow.md](git-workflow.md) | Branch naming, commit conventions, merge strategy |
+| [.devcontainer/README.md](../.devcontainer/README.md) | Dev container setup, ports, secrets, rebuild behaviour |
 
 ---
 

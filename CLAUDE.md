@@ -116,7 +116,9 @@ FABER_LOG_PROMPTS=false    # set true to log each build() output when debugging 
 | Per-framework field reference | `docs/foundations/prompt_frameworks.md` |
 | Kuzu ETL strategy, transform.cypher patterns | `docs/foundations/kuzu_etl_strategy.md` |
 | Implementing a new agent, framework layer, or milestone | `docs/foundations/dev-guide.md` |
-| Dev container setup, session modes, git workflow | `docs/running-with-claude.md` |
+| Session modes, analytical workflow, Claude rules | `docs/running-with-claude.md` |
+| Dev container setup and secrets | `.devcontainer/README.md` |
+| Git branching strategy and commit rules | `docs/git-workflow.md` |
 | Active tasks + milestone gates | `BACKLOG.md` |
 | Verified milestones | `COMPLETED.md` |
 | GNN signals, open hypotheses, Cypher queries | `analysis_opportunities.md` |
