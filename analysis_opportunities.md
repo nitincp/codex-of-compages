@@ -125,39 +125,6 @@ New schema fields: `milestone`, `hypothesis_id`, `direction`, `metric_before`, `
 
 ---
 
-## M4 — Spec Advisor, COSTAR+CoT+CAI (available from 2026-06-13)
-
-**Seeded nodes:** `SpecRun` × 9 (3 runs × 3 briefs), `RevisionEvent` × 9, `VERIFICATION_ADDS` × 6  
-**Persistent DB:** `data/kuzu` — run `python3 -m src.milestones.m4.run` to add a subgraph  
-**Vague brief introduced:** "Build something to help our team collaborate better."
-
-### Observed signals (M4, 3-run analysis, 2026-06-13)
-
-**Confirmed across 3 runs** (`python3 -m src.milestones.m4.run` × 3, model: claude-sonnet-4-6):
-
-| Brief | Lang | Revised | Conf mean | Conf range | Steps mean |
-|---|---|---|---|---|---|
-| simple | OpenAPI | False (0/3) | 0.963 | 0.020 | 7.0 |
-| complex | TLA+ | False (0/3) | 0.963 | 0.020 | 8.0 |
-| vague | OpenAPI | **True (3/3)** | **0.400** | 0.150 | 5.0 |
-
-**Hypothesis resolutions:**
-
-| ID | Hypothesis | Result | Evidence |
-|---|---|---|---|
-| H4 | CAI revision rate < 30% when confidence ≥ 0.7 | **confirmed** | simple+complex: 0% revised (conf 0.95–0.97); vague: 100% revised (conf 0.35–0.50) — binary split on brief clarity |
-
-**New signals:**
-
-- **CAI is binary on brief clarity:** vague brief triggers `vague_brief_assumption_required` principle 3/3 times (100%), simple+complex never trigger any principle (0%). No ambiguous middle cases across 3 runs.
-- **VERIFICATION_ADDS confidence deltas:** simple avg −0.017 (range −0.03 to −0.01), complex avg −0.007 (range 0.00 to −0.02). Adding CAI to clear briefs causes a small confidence drop — CAI doesn't inflate confidence artificially.
-- **OPP-5 token stack (M4 complete):** COSTAR=115, CoT=175, CAI=162 tokens. M4 stack = 452 tokens. Against ~1,892 total input tokens per call, frameworks = 23.9%; remaining 76% is tool schema + brief.
-- **Topological isolation confirmed:** vague SpecRun has no VERIFICATION_ADDS incoming edges (no M3 counterpart) — structurally isolated in graph, excluded by topology not just property filter.
-
-AnalysisNote nodes written: `m4-opp2-revision-binary-split`, `m4-opp2-verification-adds-delta`, `m4-opp5-token-composition-stack`
-
----
-
 ## Opportunities
 
 ### OPP-1: Reasoning-layer token delta (M1 → M3)
@@ -174,10 +141,18 @@ translates to richer agent output, not just longer prompts.
 
 ---
 
-### OPP-2: ConstitutionalAI revision rate (M4) ✓ DONE 2026-06-13
-**Result:** Binary split — vague 3/3 revised (avg conf 0.40), simple+complex 0/6 revised (avg conf 0.963).  
-CAI criterion 3 (low-signal brief) is the only trigger; principles 1+2 never triggered for clear briefs.  
-See M4 observed signals above. AnalysisNote: `m4-opp2-revision-binary-split`.
+### OPP-2: ConstitutionalAI revision rate (M4)
+**Available when:** M4 seeded  
+**Query:**
+```cypher
+MATCH (s:SpecRun {milestone: 'm4'})
+RETURN s.revised, count(s), avg(s.confidence)
+ORDER BY s.revised
+```
+**What it proves:** What fraction of M4 outputs trigger the CAI revision loop?
+If revision rate is high with low pre-revision confidence, CAI is doing real work.
+If revision rate is near zero, CAI may be too permissive (principles too weak).  
+**First run (2026-06-13, 3 runs):** Binary split — vague 100% revised (avg conf 0.40), clear briefs 0% (avg conf 0.963). AnalysisNote: `m4-opp2-revision-binary-split`.
 
 ---
 
@@ -212,8 +187,16 @@ across domains, PersonaLayer may not be discriminating enough.
 
 ---
 
-### OPP-5: Cross-milestone token composition stack ✓ DONE 2026-06-13
-**Result:** M2=115 (COSTAR), M3=290 (+175 CoT), M4=452 (+162 CAI). Frameworks = 23.9% of total API input (~452/1892 per call); remaining 76% is tool schema + brief. See M4 signals above. AnalysisNote: `m4-opp5-token-composition-stack`.
+### OPP-5: Cross-milestone token composition stack
+**Available when:** M2, M3, M4 all seeded  
+**Query:**
+```cypher
+MATCH (f:FrameworkLayer)
+RETURN f.name, f.dimension, avg(f.output_token_est)
+ORDER BY avg(f.output_token_est) DESC
+```
+**What it proves:** Cumulative framework token cost per milestone composition. Delta between framework total and actual API input = tool schema + brief overhead.  
+**First run (2026-06-13):** M2=115, M3=290 (+175 CoT), M4=452 (+162 CAI). Frameworks ≈24% of total input; remaining 76% is tool schema + brief. AnalysisNote: `m4-opp5-token-composition-stack`.
 
 ---
 

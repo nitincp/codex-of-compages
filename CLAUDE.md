@@ -81,7 +81,11 @@ Claude is **both** code writer and analytical orchestrator.
 2. Writes and executes ad-hoc Python scripts to query `data/kuzu`
 3. Decides what signals are worth persisting — no predetermined schema
 4. Creates `AnalysisNote` nodes + `ANALYZED` edges on the fly via `CREATE NODE TABLE IF NOT EXISTS`
-5. Updates `analysis_opportunities.md` with confirmed findings and forward hypotheses
+5. Updates `analysis_opportunities.md`: adds newly discovered OPPs; updates hypothesis status (confirmed/refuted/open)
+
+Findings persist as `AnalysisNote` nodes in Kuzu — not in markdown.
+`analysis_opportunities.md` is a library of what to ask and when, not a results log or task tracker.
+OPPs are repeatable — do not mark them "done"; they can always be re-run as more subgraphs accumulate.
 
 **Read `analysis_opportunities.md` at the start of any analytical session.**  
 Analysis is **NOT** done in code — `runner.py` captures; Claude analyzes.
