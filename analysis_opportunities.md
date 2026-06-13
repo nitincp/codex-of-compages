@@ -232,6 +232,29 @@ the framework file changed between runs — the A/B comparison is not clean.
 
 ---
 
+### OPP-8: First topology-based retrieval (M4 seeded)
+**Available when:** M4 seeded  
+**Query:**
+```cypher
+-- Given a run profile (strong brief, deep reasoning, no revision), traverse
+-- cross-schema edges and return the structurally best FewShot candidate
+MATCH (m2:SpecRun {milestone: 'm2'})-[r1:REASONING_ADDS]->(m3:SpecRun {milestone: 'm3'})
+      -[r2:VERIFICATION_ADDS]->(m4:SpecRun {milestone: 'm4'})
+WHERE r1.evaluation_depth = 'per_concern'
+  AND r1.step_count >= 5
+  AND r2.revised = false
+RETURN m4.brief_label, r1.confidence_delta, r2.confidence_delta,
+       (r1.confidence_delta + r2.confidence_delta) AS cumulative_delta
+ORDER BY cumulative_delta DESC
+LIMIT 1
+```
+**What it proves:** Topology-based retrieval works — given a new complex brief, the graph
+returns the prior run that accumulated the largest positive quality delta across both
+REASONING_ADDS and VERIFICATION_ADDS edges. This is graphRAG by structure, not by keyword.
+The result is the FewShot candidate to inject into the next Spec Advisor call.
+
+---
+
 ## Hypotheses to resolve
 
 | ID | Hypothesis | Testable at | Status |

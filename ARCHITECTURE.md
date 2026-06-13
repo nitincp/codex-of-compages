@@ -173,9 +173,61 @@ REFINES:       Specification → Specification    -- revision of same-layer spec
 STATED_BY:     Requirement → (session metadata) -- traceability to SME turn
 ```
 
-### GNN PoC schema (M4.1 track — live in data/kuzu now)
+### Graph Architecture — GNN First
 
-Each M4.1 sub-milestone owns its own tables. Cross-milestone edges carry the ML signal:
+Kuzu is not a storage layer that later gets a GNN bolted on. **It is the model.** Every milestone grows the graph schema — new node types, new edge types, new learned edge weights. The GNN is not trained offline and deployed; it is queried live against whatever has accumulated in Kuzu.
+
+**Each milestone owns its own schema.** There is no single unified graph schema defined upfront. Each milestone introduces the node types and edge types that its layer proof requires — no more. These heterogeneous subgraphs cohabit Kuzu and are connected by cross-schema edges written by the comparative feedback pass.
+
+**The feedback IS the ML pass.** Every milestone's verification analysis is comparative by design: M3 measures against M2, M4 against M3. That comparison is not documentation — it is the **cross-schema edge** written between the two milestone subgraphs. The edge carries the delta as properties: `confidence_delta`, `reasoning_step_count`, `evaluation_depth`, `revised`, `cai_principle_triggered`.
+
+```
+M2 subgraph ←——— REASONING_ADDS ———→ M3 subgraph
+  (SpecRun)    confidence_delta=+0.02    (SpecRun)
+               step_count=7
+               evaluation_depth=per-concern
+
+M3 subgraph ←——— VERIFICATION_ADDS ——→ M4 subgraph
+  (SpecRun)    revised=False (strong)     (SpecRun)
+               revised=True (vague)
+               cai_principle=3
+```
+
+**The cross-schema edge IS the gradient.** The GNN reads: "adding reasoning to structure improved confidence by X and deepened evaluation from conclusion to per-concern." That is a learned weight on the `REASONING_ADDS` edge type — an R-GCN weight matrix for that relation (Schlichtkrull et al. 2018). The GNN learns by traversing *across* these cross-schema edges — not within a single milestone's subgraph. The learning signal lives in the topology of comparison, not in the node attributes alone.
+
+#### Schema growth — each milestone contributes its own layer
+
+| Milestone | Own subgraph schema | Cross-schema edge to prior | Signal on edge |
+|---|---|---|---|
+| M1 | `FrameworkLayer`, `CAPTURED_IN` | — | — |
+| M2 | `SpecRun`, `SPEC_CAPTURED_IN` | — (first runs; no prior) | — |
+| M3 | `SpecRun` + `reasoning_step_count`, `evaluation_depth` | `M2_SpecRun → REASONING_ADDS → M3_SpecRun` | `confidence_delta`, `step_count`, `evaluation_depth` |
+| M4 | `RevisionEvent`, `VERIFICATION_ADDS` | `M3_SpecRun → VERIFICATION_ADDS → M4_SpecRun` | `revised`, `cai_principle`, `confidence_delta` |
+| M5–M11 | Spec stack nodes per milestone | `MN_SpecRun → LAYER_ADDS → MN+1_SpecRun` | Per-milestone quality delta |
+| M14–M18 | `CodeArtifact`, `TestResult` | `Spec_SpecRun → CODE_GENERATES → Build_SpecRun` | `first_gen_correct`, `test_coverage` |
+
+#### The learning loop
+
+```
+Milestone proven → verification analysis written (comparative against prior milestone)
+    ↓
+Cross-schema edges written to Kuzu: MN_SpecRun → LAYER_ADDS → MN+1_SpecRun
+    with delta properties as edge weights
+    ↓
+GNN message-passing traverses across cross-schema edges
+    ↓
+Query: "for this new brief, which path through the milestone graph
+        produced the best quality signal?" → retrieves prior run by topology
+    ↓
+FewShot layer injects that run as a real example → better agent output
+    ↓
+Better output → richer verification analysis → stronger edge weights  (loop)
+```
+
+First meaningful topology query (available after M4 seeded — see `analysis_opportunities.md` OPP-8):
+> *Traverse M2 → REASONING_ADDS → M3 → VERIFICATION_ADDS → M4. For runs where `step_count ≥ 5`, `evaluation_depth = per_concern`, and `revised = False`, what was the cumulative `confidence_delta`? Which SpecRun is the best FewShot candidate for a new complex brief?*
+
+#### GNN PoC node and rel tables (M4.1 track — live in data/kuzu)
 
 ```
 MilestoneRun    — subgraph anchor per invocation

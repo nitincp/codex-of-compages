@@ -34,7 +34,11 @@ Do **not** `/clear` mid-analysis if you're accumulating context about signals �
 2. Find the next `[ ]` task in `BACKLOG.md` — confirm the previous gate is proven
 3. Read `docs/evidence/M0{N-1}.md` → "Next Layer Can Rely On" before starting
 4. Implement, run gate tests, confirm all prior milestone tests still green
-5. Mark `[x]` in `BACKLOG.md`, create or fill in the evidence file
+5. **When milestone passes** — three-tier completion (see `CLAUDE.md` → Milestone completion checklist):
+   - Add section to `COMPLETED.md` (tasks + findings + `→ Evidence:` link, with `<a id="mN"></a>` anchor)
+   - Create/fill `docs/evidence/MXX_name.md` (Result · Lessons · Next Layer Can Rely On)
+   - Add row to BACKLOG.md Done table: `[COMPLETED.md#mN](COMPLETED.md#mN) · [evidence](docs/evidence/...)`
+   - Update README.md current state
 6. Commit on a named branch: `m{N}/short-description`
 
 **Never start a new milestone before all prior gate tests pass.**

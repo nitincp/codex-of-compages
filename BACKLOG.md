@@ -8,14 +8,14 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Done
 
-| Milestone | Date | Evidence |
+| Milestone | Date | Summary |
 |---|---|---|
-| **M0** Infrastructure | 2026-06-11 | [result](docs/evidence/M00_infrastructure.md#result) · [lessons](docs/evidence/M00_infrastructure.md#lessons) |
-| **M1** Framework builders | 2026-06-11 | [result](docs/evidence/M01_framework_builders.md#result) · [lessons](docs/evidence/M01_framework_builders.md#lessons) |
-| **M2** Spec Advisor — structure only | 2026-06-12 | [result](docs/evidence/M02_spec_advisor_structure.md#result) · [lessons](docs/evidence/M02_spec_advisor_structure.md#lessons) |
-| **M3** Add reasoning (CoT) | 2026-06-12 | [result](docs/evidence/M03_reasoning_layer.md#result) · [lessons](docs/evidence/M03_reasoning_layer.md#lessons) |
-| **M4** Add verification (CAI) | 2026-06-12 | [result](docs/evidence/M04_verification_layer.md#result) · [lessons](docs/evidence/M04_verification_layer.md#lessons) |
-| **M4.1** M0–M3 + ETL — GNN substrate *(M4.1 M4 active)* | 2026-06-12 | [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) · [lessons](docs/evidence/M04_1_graphrag_gnn_poc.md#lessons) |
+| **M0** Infrastructure | 2026-06-11 | [COMPLETED.md#m0](COMPLETED.md#m0) · [evidence](docs/evidence/M00_infrastructure.md) |
+| **M1** Framework builders | 2026-06-11 | [COMPLETED.md#m1](COMPLETED.md#m1) · [evidence](docs/evidence/M01_framework_builders.md) |
+| **M2** Spec Advisor — structure only | 2026-06-12 | [COMPLETED.md#m2](COMPLETED.md#m2) · [evidence](docs/evidence/M02_spec_advisor_structure.md) |
+| **M3** Add reasoning (CoT) | 2026-06-12 | [COMPLETED.md#m3](COMPLETED.md#m3) · [evidence](docs/evidence/M03_reasoning_layer.md) |
+| **M4** Add verification (CAI) | 2026-06-12 | [COMPLETED.md#m4](COMPLETED.md#m4) · [evidence](docs/evidence/M04_verification_layer.md) |
+| **M4.1** M0–M3 + ETL — GNN substrate *(M4.1 M4 active)* | 2026-06-12 | [M0](COMPLETED.md#m41-m0) · [M1](COMPLETED.md#m41-m1) · [M2](COMPLETED.md#m41-m2) · [ETL](COMPLETED.md#m41-etl) · [M3](COMPLETED.md#m41-m3) · [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) |
 
 ---
 
@@ -61,75 +61,8 @@ See `docs/foundations/composition_framework.md` for the full framework architect
 
 ## Graph Architecture — GNN First
 
-Kuzu is not a storage layer that later gets a GNN bolted on. **It is the model.**
-Every milestone grows the graph schema — new node types, new edge types, new learned edge weights.
-The GNN is not trained offline and deployed; it is queried live against whatever has accumulated in Kuzu.
-
-**Each milestone owns its own schema.** There is no single unified graph schema defined upfront.
-Each milestone introduces the node types and edge types that its layer proof requires — no more.
-These heterogeneous subgraphs cohabit Kuzu and are connected by cross-schema edges written
-by the comparative feedback.
-
-**The feedback IS the ML pass.** Every milestone's verification analysis is comparative by design:
-M3 measures against M2, M4 against M3. That comparison is not documentation — it is the **cross-schema
-edge** written between the two milestone subgraphs. The edge carries the delta as properties:
-`confidence_delta`, `reasoning_step_count`, `evaluation_depth`, `revised`, `cai_principle_triggered`.
-
-The GNN learns by traversing *across* these cross-schema edges — not within a single milestone's
-subgraph. The learning signal lives in the topology of comparison, not in the node attributes alone.
-
-```
-M2 subgraph ←——— REASONING_ADDS ———→ M3 subgraph
-  (SpecRun)    confidence_delta=+0.02    (SpecRun)
-               step_count=7
-               evaluation_depth=per-concern
-
-M3 subgraph ←——— VERIFICATION_ADDS ——→ M4 subgraph
-  (SpecRun)    revised=False (strong)     (SpecRun)
-               revised=True (vague)
-               cai_principle=3
-```
-
-**The cross-schema edge IS the gradient.** The GNN reads: "adding reasoning to structure improved
-confidence by X and deepened evaluation from conclusion to per-concern." That is a learned weight
-on the `REASONING_ADDS` edge type — an R-GCN weight matrix for that relation.
-
-### Schema growth: each milestone contributes its own layer
-
-| Milestone | Its own subgraph schema | Cross-schema edge to prior | Signal carried on the edge |
-|---|---|---|---|
-| M1 | `FrameworkLayer`, `ComposedChain`, `COMPOSES` | — | — |
-| M2 | `SpecRun`, `SpecSelection`, `PRODUCED`, `USES_CHAIN` | — (first runs; no prior to compare) | — |
-| M3 | `ReasoningStep`, `GROUNDS_REASONING` | `M2_SpecRun → REASONING_ADDS → M3_SpecRun` | `confidence_delta`, `step_count`, `evaluation_depth` |
-| M4 | `RevisionEvent`, `TRIGGERED_REVISION`, `REVISED_TO` | `M3_SpecRun → VERIFICATION_ADDS → M4_SpecRun` | `revised`, `cai_principle`, `confidence_delta` |
-| M5–M11 | Spec stack nodes per milestone | `MN_SpecRun → LAYER_ADDS → MN+1_SpecRun` | Per-milestone quality delta |
-| M14–M18 | `CodeArtifact`, `GherkinScenario`, `TestResult` | `Spec_SpecRun → CODE_GENERATES → Build_SpecRun` | `first_gen_correct`, `test_coverage`, `convergence_turns` |
-
-### The learning loop
-
-```
-Milestone proven → verification analysis written (comparative against prior milestone)
-    ↓
-Cross-schema edges written to Kuzu: MN_SpecRun → LAYER_ADDS → MN+1_SpecRun
-    with delta properties as edge weights
-    ↓
-GNN message-passing traverses across cross-schema edges
-    ↓
-Query: "for this new brief, which path through the milestone graph
-        produced the best quality signal?" → retrieves prior run by topology
-    ↓
-FewShot layer injects that run as a real example → better agent output
-    ↓
-Better output → richer verification analysis → stronger edge weights  (loop)
-```
-
-**After M3, the first meaningful cross-schema query:**
-> *"Traverse M2 → REASONING_ADDS → M3. For runs where reasoning_step_count ≥ 5 and
-> evaluation_depth = per-concern, what was the confidence_delta?
-> Which SpecRun should I use as a FewShot example for a new complex brief?"*
-
-This is a graph-topology traversal across heterogeneous milestone subgraphs —
-not a text-similarity lookup, not a single-schema query.
+Full design, learning loop, schema growth table, and topology query: [`ARCHITECTURE.md — Graph Architecture`](ARCHITECTURE.md#graph-architecture--gnn-first).
+First topology retrieval query: [`analysis_opportunities.md — OPP-8`](analysis_opportunities.md#opp-8-first-topology-based-retrieval-m4-seeded).
 
 ---
 

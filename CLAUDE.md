@@ -6,8 +6,12 @@ Guidance for Claude Code sessions on Faber. For project overview and current mil
 
 **Systematic PoCs from base layers upward. Always-working set.**  
 Never build a new layer before the layer below it is proven.  
-Each milestone in `BACKLOG.md` has explicit success criteria — passing them is the gate to the next.  
-`BACKLOG.md` = active tasks. `COMPLETED.md` = verified milestones (extracted to keep BACKLOG lean).
+Each milestone in `BACKLOG.md` has explicit success criteria — passing them is the gate to the next.
+
+**Three-tier docs structure for completed milestones:**
+- `BACKLOG.md` — active tasks + Done table (one row per milestone, links into the two tiers below)
+- `COMPLETED.md` — one section per completed milestone: task checklist, verified statement, findings, `→ Evidence:` link
+- `docs/evidence/MXX_name.md` — deep analysis: hypothesis · method · gate tests · result · lessons · next-layer guarantees
 
 ## Commands
 
@@ -106,6 +110,36 @@ FABER_LOG_PROMPTS=false    # set true to log each build() output when debugging 
 - **Spec Specialist has no fixed prompt** — it receives a CRISPE prompt generated at runtime by the Spec Advisor. This is the meta-prompting moment.
 - **Consensus is deliberative** — Coordinator's ReAct loop gates every layer. Nothing writes to Kuzu without a `proceed` decision.
 
+## Milestone completion checklist
+
+When a milestone's gate tests pass and Claude-in-loop analysis is done:
+
+1. **Add a section to `COMPLETED.md`** — use the pattern from existing sections:
+   - `<a id="mN"></a>` HTML anchor immediately before the heading (enables `COMPLETED.md#mN` links)
+   - `## Milestone N — Name ✓` heading
+   - All tasks as `[x]` with the same detail as the BACKLOG task list
+   - `**Verified**:` statement — test counts, CLI run counts, signals written
+   - Findings / confirmed signals (same depth as existing M2–M4.1 M3 sections)
+   - `→ Evidence:` link to `docs/evidence/MXX_name.md`
+   - For M4.1 sub-milestones: use `<a id="m41-mN"></a>` anchors + `###` headings
+
+2. **Create or complete `docs/evidence/MXX_name.md`** — sections:
+   `## Hypothesis` · `## Method` · `## Gate Tests` · `## Result` · `## Lessons` · `## Next Layer Can Rely On`
+   Create this file at milestone *start* (hypothesis + method + gates). Fill Result/Lessons/Next at the end.
+
+3. **Update BACKLOG.md Done table** — add a row:
+   ```
+   | **MN** Name | YYYY-MM-DD | [COMPLETED.md#mN](COMPLETED.md#mN) · [evidence](docs/evidence/MXX_name.md) |
+   ```
+   For M4.1 sub-milestones, link each sub-section separately:
+   ```
+   | **M4.1** ... | date | [M0](COMPLETED.md#m41-m0) · [ETL](COMPLETED.md#m41-etl) · ... · [evidence](docs/evidence/...) |
+   ```
+
+4. **Update README.md** current state table — mark milestone proven, update "next" pointer.
+
+5. **Commit** on the milestone branch. Never batch milestone completion with unrelated changes.
+
 ## Where to look
 
 | Need | Document |
@@ -120,7 +154,8 @@ FABER_LOG_PROMPTS=false    # set true to log each build() output when debugging 
 | Dev container setup and secrets | `.devcontainer/README.md` |
 | Git branching strategy and commit rules | `docs/git-workflow.md` |
 | Active tasks + milestone gates | `BACKLOG.md` |
-| Verified milestones | `COMPLETED.md` |
+| Completed milestone tasks + findings | `COMPLETED.md` (one section per milestone, anchored `#mN`) |
+| Deep milestone analysis (hypothesis · result · lessons) | `docs/evidence/MXX_name.md` |
 | GNN signals, open hypotheses, Cypher queries | `analysis_opportunities.md` |
 | Architecture decisions (ADRs) | `docs/decisions/` |
 | Thesis arc + per-milestone hypotheses | `docs/thesis/CLAIM.md` |
