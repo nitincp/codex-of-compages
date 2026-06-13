@@ -112,22 +112,99 @@ Copy framework builders: `costar.py`, `chain_of_thought.py`, `constitutional_ai.
 
 ## Milestone 5 — Layer 4 PoC: Full Spec Advisor — Meta-Prompt Output
 
-**What is being proven**: the Spec Advisor, with all four layers active, produces a CRISPE prompt (meta-prompt) that is coherent and sufficient to drive a Spec Specialist. This is the meta-prompting moment.
+**What is being proven**: the Spec Advisor (COSTAR + CoT + CAI — M4 chain, unchanged) generates a
+CRISPE meta-prompt programmatically from its structured output. That prompt, injected into a Spec
+Specialist stub as its system prompt, produces a non-empty formal spec. This is the meta-prompting
+moment: the Advisor's output becomes another agent's system prompt.
 
-- [ ] `SpecAdvisorOutput` extended: `specialist_crispe_prompt: str`
-- [ ] Spec Advisor chain now: `CLEAR → COSTAR → CoT → CAI → MetaPromptOutput(CRISPE)`
-- [ ] `src/agents/spec_specialist.py` — `SpecSpecialistAgent` stub
-  - Accepts a CRISPE prompt string at call time; no fixed system prompt
-  - Forced tool-use returning `SpecialistOutput`: `spec_content`, `spec_lang`, `well_formedness_notes`, `confidence`
-- [ ] Integration test: Spec Advisor output → feed `specialist_crispe_prompt` → Spec Specialist → `spec_content` is non-empty and mentions domain terms from input
-- [ ] `tests/test_meta_prompt.py`:
-  - Generated CRISPE prompt contains all 6 CRISPE fields
-  - `capacity` field matches the selected spec language
-  - `insight` field contains domain context from the original brief
+**Composition note**: CLEAR is not added — COSTAR already fills the Structure slot (one-dimension rule).
+The CRISPE prompt is assembled in code via `_build_crispe_prompt(output)` using the `CRISPEPrompt`
+builder, not as a new composition layer.
+
+**GNN contribution**: `MetaPromptEvent` node (CRISPE quality signals per brief) + `META_PROMPT_ADDS`
+cross-schema edge (FROM M4 SpecRun TO M5 SpecRun). First milestone where all 3 briefs have a
+cross-schema edge (vague was excluded from VERIFICATION_ADDS; M4 seeded it so M5 can link all 3).
+
+- [ ] `src/milestones/m5/migration/` — multi-pass structure; pass_01 planned:
+  - `meta.json`: `source_milestone=m4, target_milestone=m5, reseed_tables=["FrameworkLayer"], passes=1`
+  - `pass_01/schema.cypher` — complete DB snapshot at M5 (all tables including new ones)
+  - `pass_01/transform.cypher` — `SpecRun` gains `specialist_crispe_prompt STRING`;
+    adds `MetaPromptEvent` node table, `META_PROMPT_ADDS` rel table, `ANALYZED_META` rel table;
+    backfills `specialist_crispe_prompt = ''` for M0–M4 `SpecRun` rows
+  - pass_02+ added ad-hoc during Claude-in-loop analysis if schema needs to evolve
+
+- [ ] `src/milestones/m5/frameworks/` — copy from M4, add `crispe.py`:
+  - `costar.py`, `chain_of_thought.py`, `constitutional_ai.py`, `composed.py`
+    `[M5-copy | milestones/m4/frameworks/<name>.py]`
+  - `crispe.py` `[M5-copy | src/frameworks/crispe.py]`
+
+- [ ] `src/milestones/m5/schema.py` — `[M5-origin]`:
+  - `SpecAdvisorOutput`: M4 fields + `specialist_crispe_prompt: str`
+  - `SpecialistOutput`: `spec_content`, `spec_lang`, `well_formedness_notes`, `confidence`
+
+- [ ] `src/milestones/m5/agent.py` — `[M5-origin]` `SpecAdvisorAgent`:
+  - Composition: `COSTAR → ChainOfThought → ConstitutionalAI` (M4 chain, unchanged)
+  - `_build_crispe_prompt(output) → str`: fills `CRISPEPrompt` from output fields
+    (`capacity = "{selected_lang} specialist"`, `insight = justification`,
+    `statement` scoped to layer; `role`, `personality`, `experiment` fixed)
+  - `run()` appends `specialist_crispe_prompt` to output after the LLM call
+
+- [ ] `src/milestones/m5/spec_specialist.py` — `[M5-origin]` `SpecSpecialistAgent` stub:
+  - System prompt = injected CRISPE string at call time; no `ComposedPrompt` chain
+  - Forced tool-use returning `SpecialistOutput`
+  - Scoped to `m5/` only — promoted to `src/agents/` at M7
+
+- [ ] `src/milestones/m5/graph/schema.py`:
+  - `MetaPromptEvent` node: `id`, `run_id`, `brief_label`, `crispe_field_count`,
+    `capacity_char_count`, `insight_char_count`, `statement_char_count`, `capacity_matches_lang`
+  - `META_PROMPT_ADDS` rel (FROM `SpecRun` TO `SpecRun` — M4→M5, all 3 briefs):
+    `crispe_field_count`, `prompt_char_count`, `capacity_matches_lang`
+  - `ANALYZED_META` rel (FROM `AnalysisNote` TO `MetaPromptEvent`) — for Claude-in-loop
+
+- [ ] `src/milestones/m5/graph/runner.py`:
+  - `infer_crispe_field_count(prompt_str) → int`
+  - `infer_capacity_matches_lang(capacity_str, selected_lang) → bool`
+  - `infer_insight_char_count(prompt_str) → int`
+  - `seed()`: `SpecRun` (milestone=`'m5'`) + `SPEC_CAPTURED_IN` + `MetaPromptEvent`;
+    `META_PROMPT_ADDS` from M4 `SpecRun` → M5 `SpecRun` for all 3 briefs
+  - `dump()` — dev utility, never called automatically
+
+- [ ] `src/milestones/m5/run.py`:
+  - 3 briefs → M5 `SpecRun` + `MetaPromptEvent` + `META_PROMPT_ADDS` from M4
+  - `--m4-run-id` arg (auto-detects most recent M4 run)
+  - Calls `SpecSpecialistAgent` for complex brief; prints `spec_content[:200]` as validation
+  - Summary table: `brief | lang | layer | conf | crispe_fields | cap_matches | spec_len | ms`
+
+- [ ] `src/milestones/m5/tests/test_m5.py` — ~30 gate tests (ephemeral DB, mock outputs, no LLM):
+  - Schema creation: all new tables (`MetaPromptEvent`, `META_PROMPT_ADDS`, `ANALYZED_META`)
+  - `SpecRun.specialist_crispe_prompt` non-empty for all 3 briefs
+  - CRISPE prompt contains all 6 section headers
+  - `capacity_matches_lang=True` for simple + complex; CRISPE quality degrades for vague
+  - `insight_char_count > 50` for simple + complex; vague insight shorter than complex
+  - `MetaPromptEvent` node per brief with correct properties (`crispe_field_count == 6`)
+  - `META_PROMPT_ADDS` edge for **all 3 briefs** (first full cross-schema coverage)
+  - Edge properties correct per brief
+  - **3-hop topology query** (`REASONING_ADDS → VERIFICATION_ADDS → META_PROMPT_ADDS`):
+    strong briefs in results; vague filtered structurally via `revised=True` on `VERIFICATION_ADDS`
+  - 1 `@pytest.mark.integration`: `SpecSpecialistAgent` called with complex CRISPE →
+    `spec_content` non-empty, `spec_lang` matches `selected_lang`
+  - M1+M2+M3+ETL+M4 regression: 74 prior tests green
+
+- [ ] Claude-in-loop: 3 CLI runs; ad-hoc Cypher analysis of `MetaPromptEvent` signals;
+  `AnalysisNote` nodes written via `ANALYZED_META` edges using evolved schema
+  (`milestone`, `hypothesis_id`, `direction`, `metric_before`, `metric_after`);
+  add `pass_02` to migration if analysis surfaces new schema needs
+
+- [ ] `docs/evidence/M05_meta_prompt.md` — create at start (hypothesis + method + gate tests);
+  fill Result / Lessons / Next at milestone end
 
 **Success criteria** (gate to M6):
-> The Spec Advisor generates a CRISPE prompt that, when injected into the Spec Specialist,
-> produces a non-empty formal spec mentioning domain terms from the original brief.
+> All 6 CRISPE fields present and non-empty for all 3 briefs. `capacity` mentions `selected_lang`.
+> `insight` grounded in project brief (char count > 50 for non-vague).
+> `META_PROMPT_ADDS` edge from M4→M5 `SpecRun` for all 3 briefs (complete cross-schema coverage).
+> 3-hop topology query returns structurally correct result.
+> `SpecSpecialistAgent` called with injected CRISPE returns non-empty `spec_content` with `spec_lang`
+> matching `selected_lang`. 74 prior tests green.
 
 ---
 
