@@ -1,6 +1,6 @@
 -- M4 schema snapshot
--- All tables at M4: M3 tables unchanged + SpecRun extended with verification fields
---                  + RevisionEvent node + VERIFICATION_ADDS rel
+-- All tables at M4: SpecRun extended with CAI revision fields + RevisionEvent node
+-- + VERIFICATION_ADDS cross-schema edge
 
 -- M1 tables (unchanged)
 CREATE NODE TABLE MilestoneRun (
@@ -29,8 +29,8 @@ CREATE NODE TABLE FrameworkLayer (
 CREATE REL TABLE CAPTURED_IN (FROM FrameworkLayer TO MilestoneRun);
 
 -- SpecRun: M3 columns + M4 additions
--- revised: true if the CAI critique triggered a revision of lang selection or justification
--- revision_notes: the CAI principle that triggered revision (empty string if revised=false)
+-- revised: true if CAI critique triggered a revision of the output
+-- revision_notes: which principle was violated; empty string if revised=false
 CREATE NODE TABLE SpecRun (
   id STRING,
   run_id STRING,
@@ -52,7 +52,7 @@ CREATE NODE TABLE SpecRun (
 
 CREATE REL TABLE SPEC_CAPTURED_IN (FROM SpecRun TO MilestoneRun);
 
--- AnalysisNote: unchanged from M2
+-- AnalysisNote: M3 columns (unchanged in M4)
 CREATE NODE TABLE AnalysisNote (
   id STRING,
   session STRING,
@@ -61,6 +61,11 @@ CREATE NODE TABLE AnalysisNote (
   signal STRING,
   value STRING,
   note STRING,
+  milestone STRING,
+  hypothesis_id STRING,
+  direction STRING,
+  metric_before DOUBLE,
+  metric_after DOUBLE,
   PRIMARY KEY (id)
 );
 
@@ -68,7 +73,7 @@ CREATE REL TABLE ANALYZED (FROM AnalysisNote TO FrameworkLayer);
 CREATE REL TABLE ANALYZED_RUN (FROM AnalysisNote TO MilestoneRun);
 CREATE REL TABLE ANALYZED_SPEC (FROM AnalysisNote TO SpecRun);
 
--- M3 cross-schema edge (unchanged)
+-- M3 cross-schema edge (unchanged in M4)
 CREATE REL TABLE REASONING_ADDS (
   FROM SpecRun TO SpecRun,
   confidence_delta DOUBLE,
@@ -77,7 +82,8 @@ CREATE REL TABLE REASONING_ADDS (
   adds_candidate_rejection BOOLEAN
 );
 
--- M4 addition: records each CAI critique-revision cycle outcome per brief per run
+-- M4 addition: one RevisionEvent node per brief per run
+-- captures the CAI critique outcome independently of SpecRun
 CREATE NODE TABLE RevisionEvent (
   id STRING,
   run_id STRING,
@@ -88,8 +94,8 @@ CREATE NODE TABLE RevisionEvent (
   PRIMARY KEY (id)
 );
 
--- M4 addition: cross-schema edge M3 SpecRun → M4 SpecRun (same brief_label)
--- Carries the delta produced by adding the ConstitutionalAI verification layer
+-- M4 cross-schema edge: M3 SpecRun → M4 SpecRun (same brief_label)
+-- ML signal produced by adding CAI to COSTAR+CoT; carries confidence delta + revision metadata
 CREATE REL TABLE VERIFICATION_ADDS (
   FROM SpecRun TO SpecRun,
   revised BOOLEAN,
