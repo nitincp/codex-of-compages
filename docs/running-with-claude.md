@@ -162,6 +162,89 @@ See `docs/foundations/kuzu_etl_strategy.md` for the full pattern.
 
 ---
 
+## Dev container
+
+The project runs in a dev container. Understanding the setup prevents common mistakes.
+
+**What the container provides:**
+- Python 3.10 bind-mounted from the host (avoids reinstalling; survives container rebuilds)
+- Secrets at `/secrets/secrets.env` — bind-mounted from `${HOME}/projects/.secrets`, never in `.env`
+- `remoteEnv` sets `MODEL_PROVIDER`, `MODEL_NAME`, `KUZU_DB_PATH`, `FABER_LOG_PROMPTS` in every terminal
+- `faber-pip-cache` named volume persists pip's wheel cache across rebuilds (faster `postCreate`)
+- Ports 8000 (Streamlit/Chainlit) and 8501 (Streamlit default) forwarded automatically
+
+**Key `postCreateCommand` steps (run once on build):**
+```bash
+bash .devcontainer/bootstrap-secrets.sh   # wires /secrets/secrets.env into .bashrc + .profile
+python3.10 -m pip install --upgrade pip
+python3.10 -m pip install -e '/workspace/.[dev]'
+python3.10 -m playwright install chromium --with-deps  # for M0 dashboard smoke tests
+```
+
+**If the container is rebuilt**, the `faber-pip-cache` volume preserves wheels — rebuild is fast.
+`data/kuzu` is inside the workspace bind mount, so the persistent GNN survives rebuilds.
+
+**Port convention:**
+- Port 8000: `streamlit run src/ui/dashboard.py --server.port 8000` (current)
+- Port 8000 is also Chainlit's default — when wired at M7, run one on 8501 and update `forwardPorts` if needed
+- Never run Streamlit and Chainlit on the same port simultaneously
+
+**VS Code test discovery** is configured for both `tests/` (Spec Council) and `src/milestones/` (GNN gate tests) — the Test Explorer shows all suites. Pylance uses `typeCheckingMode: standard` which is stricter than the default `basic` — it catches Pydantic field mismatches and Kuzu return type errors before runtime.
+
+**Secrets discipline:**
+- `ANTHROPIC_API_KEY` → `/secrets/secrets.env` only. Never `.env`, never version control.
+- `.env` is safe to commit — it contains only non-sensitive config (`MODEL_PROVIDER`, `MODEL_NAME`, `KUZU_DB_PATH`, `FABER_LOG_PROMPTS`).
+- `remoteEnv` in devcontainer mirrors `.env` so terminal scripts see them without sourcing.
+
+---
+
+## Git workflow
+
+**Branch naming (kebab-case, imperative):**
+
+| Type | Pattern | When |
+|---|---|---|
+| Milestone work | `m{N}/short-description` | Implementing a milestone task |
+| Analysis | `analysis/hypothesis-name` | Claude-in-loop analysis; throwaway after insights committed |
+| Chore | `chore/description` | Docs, tooling, refactoring |
+| Fix | `fix/description` | Bug fix or schema correction |
+| Experimental | `wip/description` | Exploratory; never PR'd; delete when done |
+
+**Commit message format (Conventional Commits):**
+
+```
+feat(m4): add RevisionEvent nodes and VERIFICATION_ADDS edges
+fix(schema): correct src_id/dst_id convention in REASONING_ADDS rel
+chore(docs): add running-with-claude.md
+test(m3): extend gate tests for evaluation_depth assertion
+```
+
+**When to commit — commit after every meaningful, impactful change:**
+- Gate tests pass for a milestone (or a sub-milestone)
+- A schema or migration is added/updated
+- An evidence file is created or completed
+- Analysis findings are written to `analysis_opportunities.md`
+- `AnalysisNote` schema is established for a new milestone
+- Any docs that would be painful to lose
+
+**The rule: if it would hurt to redo it, commit it.** Don't batch unrelated changes into one commit — one logical unit per commit makes `git bisect` and revert safe.
+
+**Never commit to `main` directly.** All work on branches; merge via PR (or fast-forward merge after review). `main` should always be a clean, green, provably-working state.
+
+**Branch lifecycle:**
+- `m{N}/` branches: merge to main when gate tests pass + evidence file complete, then delete
+- `analysis/` branches: merge to main when `analysis_opportunities.md` updated + `AnalysisNote` nodes seeded, then delete
+- `wip/` branches: delete without merging — insights go into a clean commit on another branch
+
+**Claude commits — consistency rules:**
+- Always `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` in every commit Claude creates
+- Claude runs `ruff check . && pyright src/` before committing any code change
+- Claude never amends a commit that has already been pushed — new commit instead
+- Claude never force-pushes
+- Claude never commits directly to `main` — always proposes a branch and asks for merge approval
+
+---
+
 ## Cross-session grounding
 
 At the start of any session where you're not sure what's been done:

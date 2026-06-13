@@ -62,7 +62,8 @@ M18  Ultimate: Faber generates and verifies its own dashboard
 | What is proven, what is next, what are the gates? | [BACKLOG.md](BACKLOG.md) — active tasks |
 | What was proven and is now complete? | [COMPLETED.md](COMPLETED.md) — verified milestones |
 | What signals has the GNN surfaced? What hypotheses are open? | [analysis_opportunities.md](analysis_opportunities.md) |
-| How do I implement a new agent or framework? | [CLAUDE.md](CLAUDE.md) |
+| How do I implement a new agent or framework? | [docs/foundations/dev-guide.md](docs/foundations/dev-guide.md) |
+| How do I work with Claude across sessions? | [docs/running-with-claude.md](docs/running-with-claude.md) |
 | Why were specific decisions made? | [docs/decisions/](docs/decisions/) — ADR log |
 | What is the thesis arc? | [docs/thesis/CLAIM.md](docs/thesis/CLAIM.md) |
 | Navigate all docs | [docs/INDEX.md](docs/INDEX.md) |
@@ -97,26 +98,50 @@ by the Spec Advisor. This is the meta-prompting moment central to the project.
 
 ---
 
-## Commands
+## Getting started
+
+**Recommended: dev container** — the project ships a `.devcontainer/` that wires everything automatically.
+
+1. Open in VS Code → "Reopen in Container" (or `Dev Containers: Rebuild and Reopen in Container`)
+2. `postCreateCommand` runs automatically: bootstraps secrets, installs `pip install -e ".[dev]"`, installs Playwright Chromium
+3. Secrets are bind-mounted from `${HOME}/projects/.secrets/secrets.env` (never in `.env` or version control)
+4. Ports 8000 and 8501 are forwarded automatically
+
+**Without dev container:**
 
 ```bash
+# Copy secrets template and fill in ANTHROPIC_API_KEY
+cp .devcontainer/bootstrap-secrets.sh /tmp/ && vi /tmp/bootstrap-secrets.sh
+
 # Install
 pip install -e ".[dev]"
 
+# Verify
+streamlit run src/ui/dashboard.py --server.port 8000
+```
+
+See `.devcontainer/devcontainer.json` for the full configuration and `docs/running-with-claude.md` for session workflow.
+
+---
+
+## Commands
+
+```bash
 # Gate tests for a milestone (ephemeral DB, fast)
-pytest src/milestones/m1/tests/
-pytest src/milestones/m3/tests/
+pytest src/milestones/m{N}/tests/
 
 # Seed one subgraph into the persistent GNN (run N times to accumulate N subgraphs)
-python3 -m src.milestones.m1.run
-python3 -m src.milestones.m3.run
+python3 -m src.milestones.m{N}.run
+
+# Streamlit dashboard
+streamlit run src/ui/dashboard.py --server.port 8000
 
 # Lint + type check
 ruff check . && ruff format . && pyright src/
 
 # ETL migration (when an existing table's structure must change)
-python3 -m src.etl.migrate --to m4 --dry-run
-python3 -m src.etl.migrate --to m4
+python3 -m src.etl.migrate --to m{N} --dry-run
+python3 -m src.etl.migrate --to m{N}
 ```
 
 ---

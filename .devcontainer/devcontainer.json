@@ -1,14 +1,29 @@
 {
-  "name": "the codex of compages",
+  "name": "Faber",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+
   "mounts": [
     "source=/usr/bin/python3.10,target=/usr/bin/python3.10,type=bind,readonly",
     "source=/usr/lib/python3.10,target=/usr/lib/python3.10,type=bind,readonly",
     "source=/usr/lib/python3,target=/usr/lib/python3,type=bind,readonly",
-    "type=bind,source=${env:HOME}/projects/.secrets,target=/secrets,readonly"
+    "type=bind,source=${env:HOME}/projects/.secrets,target=/secrets,readonly",
+    "source=faber-pip-cache,target=/root/.cache/pip,type=volume"
   ],
+
+  "remoteEnv": {
+    "MODEL_PROVIDER": "anthropic",
+    "MODEL_NAME": "claude-sonnet-4-6",
+    "KUZU_DB_PATH": "data/kuzu",
+    "FABER_LOG_PROMPTS": "false"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
+    "ghcr.io/devcontainers/features/git:1": { "version": "latest", "ppa": true }
+  },
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -22,12 +37,13 @@
         "tamasfe.even-better-toml",
         "mikestead.dotenv",
         "eamodio.gitlens",
+        "mhutchie.git-graph",
         "Anthropic.claude-code"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/bin/python3.10",
         "python.terminal.activateEnvironment": false,
-        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.typeCheckingMode": "standard",
         "python.analysis.autoImportCompletions": true,
         "python.analysis.diagnosticMode": "workspace",
         "python.analysis.extraPaths": ["/home/vscode/.local/lib/python3.10/site-packages"],
@@ -41,7 +57,7 @@
           "editor.defaultFormatter": "charliermarsh.ruff"
         },
         "python.testing.pytestEnabled": true,
-        "python.testing.pytestArgs": ["tests"],
+        "python.testing.pytestArgs": ["tests", "src/milestones"],
         "python.testing.unittestEnabled": false,
         "cucumberautocomplete.steps": ["src/**/*.py"],
         "cucumberautocomplete.syncfeatures": "tests/**/*.feature",
@@ -56,9 +72,12 @@
       }
     }
   },
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "lts" }
-  },
-  "postCreateCommand": "bash .devcontainer/bootstrap-secrets.sh && python3.10 -m pip install -e '/workspace/.[dev]' && python3.10 -m playwright install chromium --with-deps && npx playwright install chromium --with-deps",
-  "forwardPorts": [8000]
+
+  "postCreateCommand": "bash .devcontainer/bootstrap-secrets.sh && python3.10 -m pip install --upgrade pip && python3.10 -m pip install -e '/workspace/.[dev]' && python3.10 -m playwright install chromium --with-deps && npx playwright install chromium --with-deps",
+
+  "forwardPorts": [8000, 8501],
+  "portsAttributes": {
+    "8000": { "label": "Streamlit dashboard / Chainlit (M7+)" },
+    "8501": { "label": "Streamlit (default port — use when Chainlit occupies 8000)" }
+  }
 }

@@ -116,8 +116,21 @@ FABER_LOG_PROMPTS=false    # set true to log each build() output when debugging 
 | Per-framework field reference | `docs/foundations/prompt_frameworks.md` |
 | Kuzu ETL strategy, transform.cypher patterns | `docs/foundations/kuzu_etl_strategy.md` |
 | Implementing a new agent, framework layer, or milestone | `docs/foundations/dev-guide.md` |
+| Dev container setup, session modes, git workflow | `docs/running-with-claude.md` |
 | Active tasks + milestone gates | `BACKLOG.md` |
 | Verified milestones | `COMPLETED.md` |
 | GNN signals, open hypotheses, Cypher queries | `analysis_opportunities.md` |
 | Architecture decisions (ADRs) | `docs/decisions/` |
 | Thesis arc + per-milestone hypotheses | `docs/thesis/CLAIM.md` |
+
+## Git workflow
+
+- **Never commit to `main` directly** — all work on branches; `main` is always green and proven
+- **Branch naming:** `m{N}/description` (milestone), `chore/description` (docs/tooling), `fix/description` (bug), `analysis/hypothesis` (throwaway), `wip/description` (experimental, never PR'd)
+- **Commit after every meaningful change** — gate tests passing, schema added, evidence file done, analysis findings written. If it would hurt to redo it, commit it.
+- **One logical unit per commit** — do not batch unrelated changes
+- **Conventional Commits format:** `feat(m4): add RevisionEvent`, `fix(schema): correct rel convention`, `chore(docs): add dev-guide`
+- **Always** include `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` in Claude-created commits
+- Run `ruff check . && pyright src/` before committing any code change
+- Never amend a pushed commit — new commit instead. Never force-push.
+- Full workflow detail: `docs/running-with-claude.md` → Git workflow section
