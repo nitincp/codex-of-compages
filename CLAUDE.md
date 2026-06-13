@@ -29,8 +29,8 @@ python3 -m src.milestones.m{N}.run my-run-id  # explicit run_id
 python3 -m src.etl.migrate --to m{N} --dry-run
 python3 -m src.etl.migrate --to m{N}
 
-# Lint + type check
-ruff check . && ruff format . && pyright src/
+# Lint
+ruff check . && ruff format .
 ```
 
 ## Testing — two-tier separation (strict)
