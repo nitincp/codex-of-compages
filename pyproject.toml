@@ -53,3 +53,6 @@ typeCheckingMode = "standard"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: live API call (requires ANTHROPIC_API_KEY)",
+]
