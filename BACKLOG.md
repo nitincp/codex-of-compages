@@ -6,6 +6,19 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
+## Done
+
+| Milestone | Date | Evidence |
+|---|---|---|
+| **M0** Infrastructure | 2026-06-11 | [result](docs/evidence/M00_infrastructure.md#result) · [lessons](docs/evidence/M00_infrastructure.md#lessons) |
+| **M1** Framework builders | 2026-06-11 | [result](docs/evidence/M01_framework_builders.md#result) · [lessons](docs/evidence/M01_framework_builders.md#lessons) |
+| **M2** Spec Advisor — structure only | 2026-06-12 | [result](docs/evidence/M02_spec_advisor_structure.md#result) · [lessons](docs/evidence/M02_spec_advisor_structure.md#lessons) |
+| **M3** Add reasoning (CoT) | 2026-06-12 | [result](docs/evidence/M03_reasoning_layer.md#result) · [lessons](docs/evidence/M03_reasoning_layer.md#lessons) |
+| **M4** Add verification (CAI) | 2026-06-12 | [result](docs/evidence/M04_verification_layer.md#result) · [lessons](docs/evidence/M04_verification_layer.md#lessons) |
+| **M4.1** M0–M3 + ETL — GNN substrate *(M4.1 M4 active)* | 2026-06-12 | [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) · [lessons](docs/evidence/M04_1_graphrag_gnn_poc.md#lessons) |
+
+---
+
 ## Execution Philosophy
 
 **Systematic PoCs from base layers upward.**
@@ -117,10 +130,6 @@ Better output → richer verification analysis → stronger edge weights  (loop)
 
 This is a graph-topology traversal across heterogeneous milestone subgraphs —
 not a text-similarity lookup, not a single-schema query.
-
----
-
-> Milestones M0–M4 and M4.1 M0–M3 + ETL are proven. Details extracted to [COMPLETED.md](COMPLETED.md).
 
 ---
 
@@ -386,23 +395,5 @@ each tier must produce a runnable artifact whose own tests pass before the miles
 
 ## Decisions Log
 
-| Date | Decision | Reason |
-|---|---|---|
-| 2026-06-12 | CAI principle 3 encodes the underspecification threshold as a deterministic rule | "Fewer than two concrete technical signals → revised=True + confidence < 0.75" gives the test a reliable trigger without depending on the model's self-assessment of vagueness. The threshold is a quality criterion (epistemic honesty), not a procedural rule — CAI's purpose is to force the model to surface its uncertainty rather than hide it behind a confident-sounding but assumption-driven selection. |
-| 2026-06-12 | CoT steps scaffold reasoning; COSTAR `response_format` is the handoff | CoT and COSTAR are assembled as peer sections by `ComposedPrompt` — no wrapping or mutation. COSTAR's `response_format` field is the only coupling: it names `reasoning_steps` as a required tool field. This makes the handoff explicit and both layers independently testable. |
-| 2026-06-12 | CoT layer elicits per-concern candidate evaluation, not just a conclusion | M3 artifact showed the model evaluating TLA+ vs Event-B vs CML vs Alloy per-concern before selecting. M2 baseline produced a single-paragraph conclusion. The step scaffold ("for each concern, name candidates and evaluate fit") is what caused the richer evaluation — the model followed the scaffold literally. |
-| 2026-06-12 | Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs. Single tool per turn + `"any"` eliminates parse failures. See ADR-004 |
-| 2026-06-12 | Streamlit dashboard as primary UI; Chainlit retained as stub | Streamlit milestone runner proved sufficient for M0 verification. Chainlit kept as interactive shell for M7+ agent chain wiring. Playwright (`pytest-playwright` + `pytest-base-url`) added as UI test layer alongside unit tests |
-| 2026-06-11 | Named **Faber** | Latin: maker/artisan/architect. Guild-of-agents metaphor. "Homo faber" grounds the PE-first philosophy |
-| 2026-06-11 | Composition over single-framework assignment | DSPy (2023) + ACL 2024 empirically prove composable chains outperform monolithic prompts. Each dimension is independently testable |
-| 2026-06-11 | Systematic PoC execution by layer | Each layer proven before next built on it. Always-working set at every milestone. Regression caught immediately |
-| 2026-06-11 | VOICE framework retired | Was a custom framework baking three dimensions into one. Replaced by: COSTAR (Structure) + Persona Prompting (Technique) + Constitutional AI (Verification) — all industry-standard |
-| 2026-06-11 | SME Agent on COSTAR + Persona + CAI | COSTAR structures the output, Persona Prompting grounds the voice, CAI gates authenticity. Three industry-standard layers replacing one custom one |
-| 2026-06-11 | Meta-prompting named explicitly | The Spec Advisor's primary product is a CRISPE prompt. This IS meta-prompting (Suzgun & Kalai 2024). Naming it makes the architecture self-documenting |
-| 2026-06-11 | **ADR-003** — Constitutional AI as the universal verification gate | Every agent's composition chain ends with `ConstitutionalAI`. Principles are agent-specific and reference named fields and thresholds. Inline critique-revision (single API call) — not a separate LLM-as-judge call. M4 is the empirical test: if it shows no improvement on weak inputs, this decision must be revisited. See `docs/decisions/ADR-003_constitutional-ai-as-verification-layer.md` |
-| 2026-06-12 | **ADR-004** — Forced tool-use (`tool_choice={"type":"any"}`) for all structured agent output | `"auto"` intermittently skips the tool call on simple inputs — discovered during M2 implementation. Single tool per turn + `"any"` eliminates silent parse failures. Additive schema pattern: `SpecAdvisorOutput` gains fields at M3/M4/M5 without breaking earlier tests. See `docs/decisions/ADR-004_forced-tool-use-for-structured-output.md` |
-| deferred | **ADR-005** — Coordinator-gated deliberative consensus (pending M8) | Decision held back intentionally — better written when M8 proves it. Rationale must be grounded in empirical evidence from the retry/escalate loop, not upfront design intent. Write after M8 gate tests pass. |
-| 2026-06-11 | Reflexion for SME Phase B multi-turn | Shinn et al. NeurIPS 2023 validates verbal episodic memory for multi-trial improvement without weight updates. Exact pattern needed for accumulating council responses |
-| 2026-06-11 | Deliberative consensus (Coordinator-gated) | Spec quality at lower layers depends on correctness above. CLEAR + ReAct makes decisions auditable. Errors surface, not propagate |
-| 2026-06-12 | Kuzu positioned as GraphRAG + GNN substrate, not a persistence layer | Derived from Senatus (agentic-gnn) (predecessor project from which Faber was forked). The architectural decision — Kuzu as a live R-GCN whose schema grows one layer per milestone — was established in Senatus (agentic-gnn) and carried forward. GraphRAG (Edge et al. 2024) and R-GCN (Schlichtkrull et al. 2018) are the grounding papers. |
-| 2026-06-11 | Separate repo from Senatus (agentic-gnn) | Senatus (agentic-gnn) is the predecessor. It had the correct architectural instinct — agent council + Kuzu GraphRAG/GNN substrate — but its implementation was rigid and ad-hoc: hard-coded prompts, fixed pipelines, no ability to adapt to project complexity or learn across runs. Faber provides the PE framework grounding that transforms that prototype into a dynamic, adaptive, evolving system. Prompts are composed at runtime from orthogonal layers; the spec stack adapts depth to complexity; the GNN accumulates signal that improves future runs. The PE framework is what makes the graph substrate live rather than static. Shared: devcontainer/toolchain (M0), Kuzu graph substrate design. Faber's own: the entire composition model. |
+Full log: [`docs/decisions/decisions-log.md`](docs/decisions/decisions-log.md)  
+ADRs: [`docs/decisions/`](docs/decisions/)

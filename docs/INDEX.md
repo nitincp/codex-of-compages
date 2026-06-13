@@ -15,7 +15,7 @@ For new session orientation, start with `README.md` in the repo root.
 | How do I work with Claude on this project? | `docs/running-with-claude.md` |
 | What are the implementation rules? | `CLAUDE.md` |
 | What's the active task list? | `BACKLOG.md` |
-| What's been proven? | `COMPLETED.md` |
+| What's been proven? | `BACKLOG.md` — [Done section](../BACKLOG.md#done) |
 | What GNN signals are confirmed? What's open? | `analysis_opportunities.md` |
 
 ---
@@ -36,6 +36,8 @@ For new session orientation, start with `README.md` in the repo root.
 ## Architecture decisions (ADRs)
 
 The *why* behind design choices. Read when you want rationale, not just behaviour.
+
+Full implementation-level decisions log (non-ADR): [`docs/decisions/decisions-log.md`](decisions/decisions-log.md)
 
 | ADR | Decision | Status |
 |---|---|---|
