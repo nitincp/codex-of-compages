@@ -211,17 +211,31 @@ cross-schema edge (vague was excluded from VERIFICATION_ADDS; M4 seeded it so M5
 
 ## Chore — E2E Prompt Composition Trace
 
-**Goal**: surface the actual layered prompt output the system produces, not just the `AnalysisNote` analysis Claude observes after the fact.
+**Goal**: surface the actual layered prompt output the system produces, not just the `AnalysisNote` analysis Claude observes after the fact. Each output format must be testable — not just generated.
 
 Currently the only persistent artifact from a run is what Claude concluded (AnalysisNote nodes in Kuzu). There is no record of the composed prompt at each layer as it actually ran — COSTAR → CRISPE → CoT → ConstitutionalAI stacked, in sequence.
 
-**Prototype exists**: `scripts/m5_prompt_trace.py` (untracked) generates `PaymentProcessing.tla` — a TLA+ formal model of the M5 layered prompt evolution. That script is the starting reference.
+**Prior prototype lost** — `scripts/m5_prompt_trace.py` and `PaymentProcessing.tla` were untracked and lost on branch switch. Rebuild from scratch.
+
+**Output formats and testability**:
+
+| Format | What it captures | Test approach | Tooling needed |
+|---|---|---|---|
+| JSON | Layer-by-layer prompt snapshots (`layer`, `framework`, `text`) | `pytest` — assert field presence, ordering, non-empty text | None — already available |
+| OpenAPI | Trace as a schema-validated API response shape | `pytest` + `jsonschema` validate against OpenAPI spec | None — `jsonschema` in dev deps |
+| TLA+ | Formal state machine of layer transitions (state = composed prompt) | `java -jar tla2tools.jar` runs TLC model checker | Java ✓ (in container) · `tla2tools.jar` still needed |
+
+**What's still missing for TLA+**:
+- `tla2tools.jar` — download in `postCreateCommand` or add to devcontainer
+- VS Code extension `alygin.vscode-tlaplus` — optional but useful for editing `.tla` files
 
 **Scope**:
-- [ ] Decide whether to commit the prototype files or rebuild cleanly
-- [ ] Produce an E2E trace output: one file (or Kuzu node) per run showing each layer's composed prompt in order
-- [ ] Wire into the milestone runner or as a standalone `scripts/trace_run.py`
-- [ ] Optionally: TLA+ or a simpler textual diff view per layer transition
+- [ ] Rebuild `scripts/trace_run.py` — reads a `run_id` from Kuzu, emits JSON trace of all layer outputs in order
+- [ ] `pytest` gate: assert JSON trace structure (layer count, framework names, non-empty composed text per layer)
+- [ ] Add OpenAPI schema for the trace shape; validate generated JSON against it in tests
+- [ ] Add `tla2tools.jar` download to devcontainer `postCreateCommand`
+- [ ] Generate `.tla` spec from trace; run TLC model checker as a test step
+- [ ] Wire `trace_run.py` as optional post-step in milestone runner (off by default, `--trace` flag)
 
 **Not a milestone gate** — does not block M6. Can be done in parallel or after.
 
