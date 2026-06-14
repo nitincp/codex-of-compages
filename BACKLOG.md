@@ -209,6 +209,24 @@ cross-schema edge (vague was excluded from VERIFICATION_ADDS; M4 seeded it so M5
 
 ---
 
+## Chore — E2E Prompt Composition Trace
+
+**Goal**: surface the actual layered prompt output the system produces, not just the `AnalysisNote` analysis Claude observes after the fact.
+
+Currently the only persistent artifact from a run is what Claude concluded (AnalysisNote nodes in Kuzu). There is no record of the composed prompt at each layer as it actually ran — COSTAR → CRISPE → CoT → ConstitutionalAI stacked, in sequence.
+
+**Prototype exists**: `scripts/m5_prompt_trace.py` (untracked) generates `PaymentProcessing.tla` — a TLA+ formal model of the M5 layered prompt evolution. That script is the starting reference.
+
+**Scope**:
+- [ ] Decide whether to commit the prototype files or rebuild cleanly
+- [ ] Produce an E2E trace output: one file (or Kuzu node) per run showing each layer's composed prompt in order
+- [ ] Wire into the milestone runner or as a standalone `scripts/trace_run.py`
+- [ ] Optionally: TLA+ or a simpler textual diff view per layer transition
+
+**Not a milestone gate** — does not block M6. Can be done in parallel or after.
+
+---
+
 ## Milestone 6 — Layer 5 PoC: First Agent Chain
 
 **What is being proven**: two agents composed in sequence. SME Agent output feeds Spec Advisor input. The Spec Advisor's selection reflects the SME's domain vocabulary — proving inter-agent context flows correctly.
