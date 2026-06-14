@@ -14,12 +14,12 @@ python3 -m pip install -e '/workspace/.[dev]'
 
 | Component | Detail |
 |---|---|
-| Python 3.10 | Installed in the container via devcontainer features |
+| Python 3.10 | Baked into the image via `mcr.microsoft.com/devcontainers/python:3.10` base |
+| `build-essential` | Baked in — required for native extensions (kuzu) |
 | Secrets | loaded from `.env` in workspace root |
 | `faber-pip-cache` | Named Docker volume — pip wheels persist across rebuilds (fast `postCreate`) |
-| `remoteEnv` | `MODEL_PROVIDER`, `MODEL_NAME`, `KUZU_DB_PATH`, `FABER_LOG_PROMPTS` set in every terminal |
+| `remoteEnv` | `MODEL_PROVIDER`, `MODEL_NAME`, `KUZU_DB_PATH`, `FABER_LOG_PROMPTS`, Langfuse vars set in every terminal |
 | Ports | 8000 (Streamlit/Chainlit) + 8501 (Streamlit default) forwarded |
-| Git | Latest git via `ghcr.io/devcontainers/features/git:1` |
 
 ## Port convention
 
@@ -30,6 +30,7 @@ python3 -m pip install -e '/workspace/.[dev]'
 ## Secrets discipline
 
 - `ANTHROPIC_API_KEY` → `.env` or shell environment in the workspace. Do not commit sensitive values to git.
+- `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` → set in your local shell or `.env`; forwarded into the container via `${localEnv:...}` in `remoteEnv`.
 - `remoteEnv` in `devcontainer.json` mirrors non-sensitive defaults so terminal scripts see variables without sourcing.
 
 ## VS Code behaviour

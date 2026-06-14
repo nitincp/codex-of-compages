@@ -17,6 +17,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done
 | **M4** Add verification (CAI) | 2026-06-12 | [COMPLETED.md#m4](COMPLETED.md#m4) · [evidence](docs/evidence/M04_verification_layer.md) |
 | **M4.1** M0–M4 + ETL — GNN substrate | 2026-06-13 | [M0](COMPLETED.md#m41-m0) · [M1](COMPLETED.md#m41-m1) · [M2](COMPLETED.md#m41-m2) · [ETL](COMPLETED.md#m41-etl) · [M3](COMPLETED.md#m41-m3) · [M4](COMPLETED.md#m41-m4) · [evidence](docs/evidence/M04_1_graphrag_gnn_poc.md) |
 | **M5** Layer 4 PoC — Full Spec Advisor + meta-prompt output | 2026-06-13 | [COMPLETED.md#m5](COMPLETED.md#m5) · [evidence](docs/evidence/M05_meta_prompt.md) |
+| **Chore** Devcontainer Optimization (Dockerfile migration) | 2026-06-14 | [COMPLETED.md#chore-devcontainer](COMPLETED.md#chore-devcontainer) |
 
 ---
 
@@ -64,22 +65,6 @@ See `docs/foundations/composition_framework.md` for the full framework architect
 
 Full design, learning loop, schema growth table, and topology query: [`ARCHITECTURE.md — Graph Architecture`](ARCHITECTURE.md#graph-architecture--gnn-first).
 First topology retrieval query: [`analysis_opportunities.md — OPP-8`](analysis_opportunities.md#opp-8-first-topology-based-retrieval-m4-seeded).
-
----
-
-## Chore — Devcontainer Optimization (Dockerfile migration)
-
-**Goal**: replace the current features-based devcontainer with a Dockerfile so that system-level dependencies are baked into a cached image layer rather than re-downloaded on every container rebuild.
-
-**Why now**: the features-based setup re-downloads Python, Node, and Java on every rebuild. A Dockerfile base image caches these at build time. Java and Node have no remaining dependency in this project. The Dockerfile is also the prerequisite for wiring Langfuse env vars cleanly.
-
-**Changes**:
-- [ ] Create `.devcontainer/Dockerfile` — `FROM mcr.microsoft.com/devcontainers/python:3.10`; install any system-level native deps required by Kuzu or other packages (e.g. `build-essential`); no Java, no tool downloads
-- [ ] Update `devcontainer.json` — replace `"image"` + `"features"` with `"build": { "dockerfile": "Dockerfile" }`; remove Python, Java, and Node features
-- [ ] Add Langfuse env vars to `remoteEnv`: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST=http://host.docker.internal:3000`
-- [ ] Keep `postCreateCommand` as-is — `pip install -e ".[dev]"` stays here (workspace bind-mount not available at image build time)
-
-**Not a milestone gate** — does not block M6. Should be done before the LLM Observability chore.
 
 ---
 

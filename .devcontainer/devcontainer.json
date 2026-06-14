@@ -1,6 +1,6 @@
 {
   "name": "Faber",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "build": { "dockerfile": "Dockerfile" },
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
 
@@ -12,13 +12,10 @@
     "MODEL_PROVIDER": "anthropic",
     "MODEL_NAME": "claude-sonnet-4-6",
     "KUZU_DB_PATH": "data/kuzu",
-    "FABER_LOG_PROMPTS": "false"
-  },
-
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
-    "ghcr.io/devcontainers/features/java:1": { "version": "17" },
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.10" }
+    "FABER_LOG_PROMPTS": "false",
+    "LANGFUSE_PUBLIC_KEY": "${localEnv:LANGFUSE_PUBLIC_KEY}",
+    "LANGFUSE_SECRET_KEY": "${localEnv:LANGFUSE_SECRET_KEY}",
+    "LANGFUSE_HOST": "http://host.docker.internal:3000"
   },
 
   "customizations": {
@@ -34,7 +31,7 @@
         "Anthropic.claude-code"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "python.defaultInterpreterPath": "/usr/local/bin/python3",
         "python.terminal.activateEnvironment": false,
         "python.analysis.typeCheckingMode": "standard",
         "python.analysis.autoImportCompletions": true,

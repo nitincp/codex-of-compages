@@ -530,3 +530,17 @@ Key findings:
 - **Tool schema non-compliance**: SpecSpecialistAgent's `required` fields (`well_formedness_notes`, `confidence`) sometimes omitted by the LLM. Fixed with Pydantic defaults — `spec_content` + `spec_lang` are always returned.
 
 → Evidence: [M05_meta_prompt.md](docs/evidence/M05_meta_prompt.md)
+
+---
+
+<a id="chore-devcontainer"></a>
+## Chore — Devcontainer Optimization (Dockerfile migration) ✓
+
+**Goal**: replace the features-based devcontainer with a Dockerfile so that system-level dependencies are baked into a cached image layer rather than re-downloaded on every container rebuild.
+
+- [x] Create `.devcontainer/Dockerfile` — `FROM mcr.microsoft.com/devcontainers/python:3.10`; `build-essential` for native deps; no Java, no Node tool downloads
+- [x] Update `devcontainer.json` — replace `"image"` + `"features"` with `"build": { "dockerfile": "Dockerfile" }`; Python, Java, and Node features removed
+- [x] Add Langfuse env vars to `remoteEnv`: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST=http://host.docker.internal:3000`
+- [x] Keep `postCreateCommand` as-is — `pip install -e ".[dev]"` runs at container start (workspace bind-mount not available at image build time)
+
+**Verified** (2026-06-14): Dockerfile present, `devcontainer.json` updated to Dockerfile build, Langfuse env vars wired. Container rebuild no longer re-downloads Python/Java/Node. Prerequisite for LLM Observability chore satisfied.
