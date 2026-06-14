@@ -4,8 +4,8 @@ Guidance for Claude Code sessions on Faber. For project overview and current mil
 
 ## Execution philosophy
 
-**Systematic PoCs from base layers upward. Always-working set.**  
-Never build a new layer before the layer below it is proven.  
+**Systematic PoCs from base layers upward. Always-working set.**
+Never build a new layer before the layer below it is proven.
 Each milestone in `BACKLOG.md` has explicit success criteria — passing them is the gate to the next.
 
 **Three-tier docs structure for completed milestones:**
@@ -38,7 +38,7 @@ ruff check . && ruff format .
 1. **Gate tests** (`pytest src/milestones/m{N}/tests/`) — ephemeral tmp Kuzu DB, no persistent state. Gate to the next milestone.
 2. **Milestone runner** (`python3 -m src.milestones.m{N}.run`) — seeds one subgraph into persistent `data/kuzu`. Run N times to accumulate N subgraphs.
 
-Gate tests **never** write to persistent DB. The runner **never** runs pytest.  
+Gate tests **never** write to persistent DB. The runner **never** runs pytest.
 Claude decides when to run each based on the current goal (analysis vs. validation).
 
 ## Milestone layout
@@ -87,13 +87,12 @@ Findings persist as `AnalysisNote` nodes in Kuzu — not in markdown.
 `analysis_opportunities.md` is a library of what to ask and when, not a results log or task tracker.
 OPPs are repeatable — do not mark them "done"; they can always be re-run as more subgraphs accumulate.
 
-**Read `analysis_opportunities.md` at the start of any analytical session.**  
+**Read `analysis_opportunities.md` at the start of any analytical session.**
 Analysis is **NOT** done in code — `runner.py` captures; Claude analyzes.
 
 ## Environment
 
-Secrets in `/secrets/secrets.env`. Source via `.devcontainer/bootstrap-secrets.sh`.  
-**NEVER put `ANTHROPIC_API_KEY` in `.env`.**
+Secrets and API keys are loaded from `.env` in the workspace root or from the shell environment. Keep sensitive values out of git.
 
 `.env`:
 ```

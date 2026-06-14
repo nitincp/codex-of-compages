@@ -44,8 +44,7 @@ python3 -m src.etl.diff m2 m3
 
 **Gotchas:**
 - `src` imports only work from `/workspace` root — never `cd` into a subdir first
-- M1 runner needs no API key (pure Python). M2+ call Anthropic — source secrets first:
-  `source .devcontainer/bootstrap-secrets.sh`
+- M1 runner needs no API key (pure Python). M2+ call Anthropic — `ANTHROPIC_API_KEY` is in `.env`.
 - Gate tests never touch `data/kuzu`. Runner always writes to `data/kuzu`.
 - `streamlit` binary may not be on PATH — `python3 -m streamlit run ...` always works
 - If Kuzu throws `Cannot open DB`, another process has the DB open — kill it first

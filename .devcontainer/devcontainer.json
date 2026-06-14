@@ -5,10 +5,6 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
 
   "mounts": [
-    "source=/usr/bin/python3.10,target=/usr/bin/python3.10,type=bind,readonly",
-    "source=/usr/lib/python3.10,target=/usr/lib/python3.10,type=bind,readonly",
-    "source=/usr/lib/python3,target=/usr/lib/python3,type=bind,readonly",
-    "type=bind,source=${env:HOME}/projects/.secrets,target=/secrets,readonly",
     "source=faber-pip-cache,target=/root/.cache/pip,type=volume"
   ],
 
@@ -21,7 +17,9 @@
 
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
-    "ghcr.io/devcontainers/features/git:1": { "version": "latest", "ppa": true }
+    "ghcr.io/devcontainers/features/git:1": { "version": "latest", "ppa": true },
+    "ghcr.io/devcontainers/features/java:1": { "version": "17" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.10" }
   },
 
   "customizations": {
@@ -32,21 +30,16 @@
         "ms-python.debugpy",
         "charliermarsh.ruff",
         "ms-python.pytest",
-        "hediet.vscode-drawio",
-        "alexkrechik.cucumberautocomplete",
         "tamasfe.even-better-toml",
         "mikestead.dotenv",
-        "eamodio.gitlens",
-        "mhutchie.git-graph",
         "Anthropic.claude-code"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/bin/python3.10",
+        "python.defaultInterpreterPath": "/usr/bin/python3",
         "python.terminal.activateEnvironment": false,
         "python.analysis.typeCheckingMode": "standard",
         "python.analysis.autoImportCompletions": true,
         "python.analysis.diagnosticMode": "workspace",
-        "python.analysis.extraPaths": ["/home/vscode/.local/lib/python3.10/site-packages"],
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.codeActionsOnSave": {
@@ -73,7 +66,7 @@
     }
   },
 
-  "postCreateCommand": "bash .devcontainer/bootstrap-secrets.sh && python3.10 -m pip install --upgrade pip && python3.10 -m pip install -e '/workspace/.[dev]' && python3.10 -m playwright install chromium --with-deps && npx playwright install chromium --with-deps",
+  "postCreateCommand": "python3 -m pip install --upgrade pip && python3 -m pip install -e '/workspace/.[dev]'",
 
   "forwardPorts": [8000, 8501],
   "portsAttributes": {

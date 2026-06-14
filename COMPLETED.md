@@ -14,7 +14,7 @@ Status: all items here are `[x]` done and verified.
 Goal: working devcontainer, Kuzu connected, Streamlit dashboard running, all deps installed.
 Source: extracted and adapted from Senatus project.
 
-- [x] Copy `.devcontainer/` from Senatus (`bootstrap-secrets.sh`, `devcontainer.json`)
+- [x] Copy `.devcontainer/` from Senatus (`devcontainer.json`)
 - [x] Create `pyproject.toml` — core deps (`anthropic`, `langgraph`, `kuzu`, `chainlit`, `streamlit`, `pydantic`, `python-dotenv`, `tenacity`, `ruff`, `pytest`, `playwright`, `pytest-playwright`, `pytest-base-url`)
 - [x] Adapt `src/agents/base.py` from Senatus
   - `build_prompt(layers: list[FrameworkLayer]) -> str` — assembles composed chain

@@ -103,16 +103,13 @@ by the Spec Advisor. This is the meta-prompting moment central to the project.
 **Recommended: dev container** — the project ships a `.devcontainer/` that wires everything automatically.
 
 1. Open in VS Code → "Reopen in Container" (or `Dev Containers: Rebuild and Reopen in Container`)
-2. `postCreateCommand` runs automatically: bootstraps secrets, installs `pip install -e ".[dev]"`, installs Playwright Chromium
-3. Secrets are bind-mounted from `${HOME}/projects/.secrets/secrets.env` (never in `.env` or version control)
+2. `postCreateCommand` runs automatically: installs `pip install -e ".[dev]"`
+3. Secrets and API keys are managed using `.env` in the workspace root; no host bind mount is required.
 4. Ports 8000 and 8501 are forwarded automatically
 
 **Without dev container:**
 
 ```bash
-# Copy secrets template and fill in ANTHROPIC_API_KEY
-cp .devcontainer/bootstrap-secrets.sh /tmp/ && vi /tmp/bootstrap-secrets.sh
-
 # Install
 pip install -e ".[dev]"
 
