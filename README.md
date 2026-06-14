@@ -18,11 +18,12 @@ across runs and is queryable live — it is not a storage layer bolted on later,
 | M2 Spec Advisor, structure only (Layer 1) | ✓ proven — 10/10 tests |
 | M3 Add Reasoning / CoT (Layer 2) | ✓ proven — 19/19 tests |
 | M4 Add Verification / CAI (Layer 3) | ✓ proven — 27/27 tests |
-| M4.1 GNN PoC sub-milestones | M0–M4 ✓ — 74/74 tests; **M5 is next** |
-| M5–M13 Spec Council | not started |
+| M4.1 GNN PoC sub-milestones | M0–M4 ✓ — 74/74 tests |
+| M5 Full Spec Advisor + meta-prompt (Layer 4) | ✓ proven — 30/30 tests; 104 total — **M6 is next** |
+| M6–M13 Spec Council | not started |
 | M14–M18 Build Council | not started |
 
-**Next task:** M5 — Full Spec Advisor with meta-prompt output (CRISPE prompt for Spec Specialist).
+**Next task:** M6 — FewShot retrieval from Kuzu graph (topology-based example selection for Spec Advisor).
 
 ---
 
@@ -102,16 +103,13 @@ by the Spec Advisor. This is the meta-prompting moment central to the project.
 **Recommended: dev container** — the project ships a `.devcontainer/` that wires everything automatically.
 
 1. Open in VS Code → "Reopen in Container" (or `Dev Containers: Rebuild and Reopen in Container`)
-2. `postCreateCommand` runs automatically: bootstraps secrets, installs `pip install -e ".[dev]"`, installs Playwright Chromium
-3. Secrets are bind-mounted from `${HOME}/projects/.secrets/secrets.env` (never in `.env` or version control)
+2. `postCreateCommand` runs automatically: installs `pip install -e ".[dev]"`
+3. Secrets and API keys are managed using `.env` in the workspace root; no host bind mount is required.
 4. Ports 8000 and 8501 are forwarded automatically
 
 **Without dev container:**
 
 ```bash
-# Copy secrets template and fill in ANTHROPIC_API_KEY
-cp .devcontainer/bootstrap-secrets.sh /tmp/ && vi /tmp/bootstrap-secrets.sh
-
 # Install
 pip install -e ".[dev]"
 

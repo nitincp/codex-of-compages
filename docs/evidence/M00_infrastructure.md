@@ -1,9 +1,9 @@
 # M00 — Infrastructure
 
-**Layer:** 0 — Infrastructure  
-**Milestone:** M0 in BACKLOG.md  
-**Status:** Complete  
-**Date started:** 2026-06-11  
+**Layer:** 0 — Infrastructure
+**Milestone:** M0 in BACKLOG.md
+**Status:** Complete
+**Date started:** 2026-06-11
 **Date completed:** 2026-06-12
 
 ---
@@ -20,7 +20,7 @@ providing a verified, isolated base for all subsequent milestones.
 
 Extracted the following components from the Senatus project and adapted for Faber:
 
-- `.devcontainer/` — `bootstrap-secrets.sh`, `devcontainer.json`
+- `.devcontainer/` — `devcontainer.json`
 - `src/agents/base.py` — added `build_prompt(layers: list) -> str` alongside existing TokenUsage/SessionUsage
 - `src/graph/schema.py` — extended `NodeType`/`EdgeType` enums for `Specification`, `Requirement`, `GROUNDS`, `DERIVED_FROM`, `REFINES`
 - `src/graph/store.py` — new node/edge props; `write_node()`/`write_edge()` patterns intact
@@ -34,8 +34,8 @@ See BACKLOG.md [M0 section](../../BACKLOG.md#milestone-0--infrastructure-) for f
 
 ## Gate Tests
 
-> `streamlit run src/ui/dashboard.py --server.port 8000` starts without errors.  
-> Dashboard renders heading, milestone selector, Run button, and idle agent cards.  
+> `streamlit run src/ui/dashboard.py --server.port 8000` starts without errors.
+> Dashboard renders heading, milestone selector, Run button, and idle agent cards.
 > Playwright smoke tests (`tests/test_m0_dashboard.py`) confirm all four.
 
 ---
