@@ -217,25 +217,42 @@ Currently the only persistent artifact from a run is what Claude concluded (Anal
 
 **Prior prototype lost** — `scripts/m5_prompt_trace.py` and `PaymentProcessing.tla` were untracked and lost on branch switch. Rebuild from scratch.
 
-**Output formats and testability**:
+**Output formats and testability** (verified by research):
 
-| Format | What it captures | Test approach | Tooling needed |
-|---|---|---|---|
-| JSON | Layer-by-layer prompt snapshots (`layer`, `framework`, `text`) | `pytest` — assert field presence, ordering, non-empty text | None — already available |
-| OpenAPI | Trace as a schema-validated API response shape | `pytest` + `jsonschema` validate against OpenAPI spec | None — `jsonschema` in dev deps |
-| TLA+ | Formal state machine of layer transitions (state = composed prompt) | `java -jar tla2tools.jar` runs TLC model checker | Java ✓ (in container) · `tla2tools.jar` still needed |
+| Format | Test approach | Dep | Headless CLI? | Notes |
+|---|---|---|---|---|
+| JSON Schema | `pytest` + `jsonschema` | `jsonschema` pip | n/a | Pure Python |
+| OpenAPI | `pytest` + `openapi-spec-validator` | `openapi-spec-validator` pip | n/a | Pure Python |
+| Pydantic | `pytest` — instantiate + validate | already a core dep | n/a | Pure Python |
+| TLA+ | `java -cp tla2tools.jar tlc2.TLC Spec.tla` | `tla2tools.jar` download | ✓ Full | MIT · single JAR · clean exit codes |
+| Alloy | Java API wrapper class invoking `CompModule` | `org.alloytools.alloy.dist.jar` download | ⚠ Partial | Standard JAR opens Swing GUI; needs thin wrapper |
+| Event-B | `./probcli -model_check Spec.eventb` | `probcli` binary download | ✓ Full | EPL/LGPL · standalone binary · no IDE needed |
+| **CML** | — | — | **✗ Blocked** | Legacy Symphony/Eclipse toolchain; no CLI path exists |
 
-**What's still missing for TLA+**:
-- `tla2tools.jar` — download in `postCreateCommand` or add to devcontainer
-- VS Code extension `alygin.vscode-tlaplus` — optional but useful for editing `.tla` files
+**CML is untestable** — the COMPASS/Symphony toolset is Eclipse-RCP only with no decoupled CLI. CML should be flagged as non-verifiable in `src/milestones/m5/agent.py` until an alternative is identified.
+
+**What needs to be added**:
+
+*`pyproject.toml` dev deps:*
+- `jsonschema`
+- `openapi-spec-validator`
+
+*`devcontainer.json` `postCreateCommand` downloads (Java 17 ✓):*
+- `tla2tools.jar` — from `github.com/tlaplus/tlaplus/releases`
+- `org.alloytools.alloy.dist.jar` — from `github.com/AlloyTools/org.alloytools.alloy/releases` + thin Java wrapper class for headless invocation
+- `probcli` — tarball from `prob.hhu.de` (covers Event-B; does not cover CML)
+
+*VS Code extensions:*
+- `alygin.vscode-tlaplus` — TLA+ syntax + TLC integration
 
 **Scope**:
-- [ ] Rebuild `scripts/trace_run.py` — reads a `run_id` from Kuzu, emits JSON trace of all layer outputs in order
-- [ ] `pytest` gate: assert JSON trace structure (layer count, framework names, non-empty composed text per layer)
-- [ ] Add OpenAPI schema for the trace shape; validate generated JSON against it in tests
-- [ ] Add `tla2tools.jar` download to devcontainer `postCreateCommand`
-- [ ] Generate `.tla` spec from trace; run TLC model checker as a test step
-- [ ] Wire `trace_run.py` as optional post-step in milestone runner (off by default, `--trace` flag)
+- [ ] Add `jsonschema`, `openapi-spec-validator` to dev deps in `pyproject.toml`
+- [ ] Add `tla2tools.jar`, `alloy.dist.jar`, `probcli` downloads to `postCreateCommand`; write Alloy headless wrapper class
+- [ ] Add `alygin.vscode-tlaplus` to devcontainer extensions
+- [ ] Flag CML as non-verifiable in `src/milestones/m5/agent.py` docstring
+- [ ] Rebuild `scripts/trace_run.py` — reads a `run_id` from Kuzu, emits per-format spec output for each layer in order
+- [ ] `pytest` gate per format: structural validity (JSON Schema shape, OpenAPI contract, Pydantic instantiation, TLC/Alloy/ProB exit code 0)
+- [ ] Wire `trace_run.py` as optional post-step in milestone runner (`--trace` flag, off by default)
 
 **Not a milestone gate** — does not block M6. Can be done in parallel or after.
 
