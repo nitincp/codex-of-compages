@@ -209,52 +209,59 @@ cross-schema edge (vague was excluded from VERIFICATION_ADDS; M4 seeded it so M5
 
 ---
 
-## Chore — E2E Prompt Composition Trace
+## Chore — Devcontainer Optimization (Dockerfile migration)
 
-**Goal**: surface the actual layered prompt output the system produces, not just the `AnalysisNote` analysis Claude observes after the fact. Each output format must be testable — not just generated.
+**Goal**: replace the current features-based devcontainer with a Dockerfile so that system-level dependencies are baked into a cached image layer rather than re-downloaded on every container rebuild.
 
-Currently the only persistent artifact from a run is what Claude concluded (AnalysisNote nodes in Kuzu). There is no record of the composed prompt at each layer as it actually ran — COSTAR → CRISPE → CoT → ConstitutionalAI stacked, in sequence.
+**Why now**: the features-based setup re-downloads Python, Node, and Java on every rebuild. A Dockerfile base image caches these at build time. Java and Node have no remaining dependency in this project. The Dockerfile is also the prerequisite for wiring Langfuse env vars cleanly.
 
-**Prior prototype lost** — `scripts/m5_prompt_trace.py` and `PaymentProcessing.tla` were untracked and lost on branch switch. Rebuild from scratch.
+**Changes**:
+- [ ] Create `.devcontainer/Dockerfile` — `FROM mcr.microsoft.com/devcontainers/python:3.10`; install any system-level native deps required by Kuzu or other packages (e.g. `build-essential`); no Java, no tool downloads
+- [ ] Update `devcontainer.json` — replace `"image"` + `"features"` with `"build": { "dockerfile": "Dockerfile" }`; remove Python, Java, and Node features
+- [ ] Add Langfuse env vars to `remoteEnv`: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST=http://host.docker.internal:3000`
+- [ ] Keep `postCreateCommand` as-is — `pip install -e ".[dev]"` stays here (workspace bind-mount not available at image build time)
 
-**Output formats and testability** (verified by research):
+**Not a milestone gate** — does not block M6. Should be done before the LLM Observability chore.
 
-| Format | Test approach | Dep | Headless CLI? | Notes |
-|---|---|---|---|---|
-| JSON Schema | `pytest` + `jsonschema` | `jsonschema` pip | n/a | Pure Python |
-| OpenAPI | `pytest` + `openapi-spec-validator` | `openapi-spec-validator` pip | n/a | Pure Python |
-| Pydantic | `pytest` — instantiate + validate | already a core dep | n/a | Pure Python |
-| TLA+ | `java -cp tla2tools.jar tlc2.TLC Spec.tla` | `tla2tools.jar` download | ✓ Full | MIT · single JAR · clean exit codes |
-| Alloy | Java API wrapper class invoking `CompModule` | `org.alloytools.alloy.dist.jar` download | ⚠ Partial | Standard JAR opens Swing GUI; needs thin wrapper |
-| Event-B | `./probcli -model_check Spec.eventb` | `probcli` binary download | ✓ Full | EPL/LGPL · standalone binary · no IDE needed |
-| **CML** | — | — | **✗ Blocked** | Legacy Symphony/Eclipse toolchain; no CLI path exists |
+---
 
-**CML is untestable** — the COMPASS/Symphony toolset is Eclipse-RCP only with no decoupled CLI. CML should be flagged as non-verifiable in `src/milestones/m5/agent.py` until an alternative is identified.
+## Chore — LLM Observability (Langfuse self-hosted)
 
-**What needs to be added**:
+**Goal**: capture runtime telemetry for every LLM call and prompt pipeline run — full prompt text per layer, model response, token counts (input / output / cache read / cache write), latency, cost estimate, and agent identity — with per-milestone prompt versioning tracked in Langfuse. Langfuse runs on the host machine; the devcontainer connects via `host.docker.internal`.
 
-*`pyproject.toml` dev deps:*
-- `jsonschema`
-- `openapi-spec-validator`
+**Why now**: milestone runners are black boxes. The only persistent artifact from a run is what Claude concluded (`AnalysisNote` nodes in Kuzu). There is no record of what each framework layer built, what was sent to the API, how tokens accumulated, or how prompt compositions changed across milestones.
 
-*`devcontainer.json` `postCreateCommand` downloads (Java 17 ✓):*
-- `tla2tools.jar` — from `github.com/tlaplus/tlaplus/releases`
-- `org.alloytools.alloy.dist.jar` — from `github.com/AlloyTools/org.alloytools.alloy/releases` + thin Java wrapper class for headless invocation
-- `probcli` — tarball from `prob.hhu.de` (covers Event-B; does not cover CML)
+**Langfuse host setup** (done once on the developer's machine, outside the devcontainer):
+- [ ] Add `.langfuse/docker-compose.yml` to workspace (gitignored) — standard Langfuse v3 stack: Postgres + ClickHouse + Langfuse app + worker
+- [ ] Document startup in `.devcontainer/README.md`: `docker compose -f .langfuse/docker-compose.yml up -d`; include first-run credential setup
+- [ ] Add `.langfuse/` to `.gitignore`
 
-*VS Code extensions:*
-- `alygin.vscode-tlaplus` — TLA+ syntax + TLC integration
+**Python integration**:
+- [ ] Add to `pyproject.toml` dev deps: `langfuse`, `opentelemetry-instrumentation-anthropic`
+- [ ] Create `src/observability/` — `__init__.py`, `setup.py` (OTel init + `AnthropicInstrumentor().instrument()` + Langfuse OTEL exporter), graceful no-op when `LANGFUSE_HOST` is unset
+- [ ] Add `@observe(name="milestone_run")` to each milestone `run.py` entry point
+- [ ] Add `@observe(name="agent_{name}")` to each agent's `run()` method
+- [ ] All existing gate tests pass unchanged — no HTTP calls, no side effects when `LANGFUSE_HOST` unset
 
-**Scope**:
-- [ ] Add `jsonschema`, `openapi-spec-validator` to dev deps in `pyproject.toml`
-- [ ] Add `tla2tools.jar`, `alloy.dist.jar`, `probcli` downloads to `postCreateCommand`; write Alloy headless wrapper class
-- [ ] Add `alygin.vscode-tlaplus` to devcontainer extensions
-- [ ] Flag CML as non-verifiable in `src/milestones/m5/agent.py` docstring
-- [ ] Rebuild `scripts/trace_run.py` — reads a `run_id` from Kuzu, emits per-format spec output for each layer in order
-- [ ] `pytest` gate per format: structural validity (JSON Schema shape, OpenAPI contract, Pydantic instantiation, TLC/Alloy/ProB exit code 0)
-- [ ] Wire `trace_run.py` as optional post-step in milestone runner (`--trace` flag, off by default)
+**Ad-hoc logging cleanup** (Langfuse supersedes these):
+- [ ] Remove `FABER_LOG_PROMPTS` print block from all 6 `composed.py` copies: `src/frameworks/composed.py` and `src/milestones/m{1–5}/frameworks/composed.py` — OTel auto-instrumentation captures the full composed prompt at the API boundary
+- [ ] Remove `FABER_LOG_PROMPTS` from `.env` and from `devcontainer.json` `remoteEnv`
+- [ ] Remove `FABER_LOG_PROMPTS` reference from `CLAUDE.md` `.env` example block
+- [ ] Simplify `run.py` summary output in m1–m5: strip the per-brief token/latency table rows (Langfuse captures these via OTel spans); keep the Kuzu graph state section (total runs in DB, edges written, edge properties) — that data is not in Langfuse
+- [ ] Keep as-is: ML pass `print()` blocks in gate test files (query ephemeral mock DB, not real API calls — Langfuse has no visibility); `print()` in `etl/migrate.py` / `etl/diff.py` (migration CLI, unrelated to LLM telemetry)
 
-**Not a milestone gate** — does not block M6. Can be done in parallel or after.
+**Prompt versioning**:
+- [ ] Register each milestone's framework composition as a versioned prompt in Langfuse (`langfuse.create_prompt(name="m{N}_pipeline", prompt=..., labels=["m{N}"])`) — enables diff view across milestone boundaries in Langfuse UI
+
+**Kuzu span ingestion**:
+- [ ] `src/observability/kuzu_exporter.py` — thin `SpanExporter` that on span-end upserts a `PromptTrace` node into Kuzu: `run_id`, `agent_id`, `milestone`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `latency_ms`, `cost_usd`, `model`
+- [ ] `TRACE_OF` rel from `PromptTrace` → `MilestoneRun` — links telemetry into the existing GNN subgraph so token cost and latency become queryable graph signals
+
+**Gate**:
+- [ ] All existing milestone gate tests pass with observability initialised
+- [ ] One integration test: a single `client.messages.create()` call produces a `PromptTrace` node in ephemeral Kuzu with correct `input_tokens` and `latency_ms > 0`
+
+**Not a milestone gate** — does not block M6. Should follow the Devcontainer chore.
 
 ---
 
